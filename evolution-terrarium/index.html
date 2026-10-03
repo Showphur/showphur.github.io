@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Evolution Terrarium 🧬</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root {
+    --bg: #0E1512;
+    --panel: #16211C;
+    --panel-2: #1D2B25;
+    --line: #2A3B33;
+    --ink: #E6F0EA;
+    --muted: #8FA59A;
+    --accent: #6EE7A8;
+    --water: #5AB4FF;
+    --light: #FFD65A;
+    --nutr: #9BDB6A;
+    --hum: #A8D8E8;
+    --div: #FF8FB1;
+    --danger: #FF7A6B;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Inter', system-ui, sans-serif; }
+body { padding: 16px; }
+.app { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+h1 { margin: 0; font-size: 1.5em; font-weight: 800; letter-spacing: -0.02em; }
+h1 span { color: var(--accent); }
+h2 { margin: 0 0 10px; font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+a.home { color: var(--muted); text-decoration: none; font-weight: 600; font-size: 0.9em; }
+a.home:hover { color: var(--ink); }
+.clock { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.chip { background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 12px; align-items: start; }
+@media (max-width: 1050px) { .layout { grid-template-columns: 1fr; } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
+.stage { display: flex; flex-direction: column; gap: 10px; }
+.hud { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
+@media (max-width: 760px) { .hud { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.tile { background: var(--panel-2); border-radius: 12px; padding: 8px 10px; min-width: 0; }
+.tile .k { font-size: 0.72em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .v { font-size: 1.15em; font-weight: 800; font-variant-numeric: tabular-nums; margin: 2px 0 5px; white-space: nowrap; }
+.meter { height: 5px; border-radius: 3px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.meter i { display: block; height: 100%; width: 0; border-radius: 3px; transition: width 0.4s ease; }
+canvas#tank { width: 100%; height: auto; display: block; border-radius: 14px; touch-action: none; background: #0B1210; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.group { display: flex; gap: 6px; align-items: center; background: var(--panel-2); padding: 5px; border-radius: 12px; flex-wrap: wrap; }
+button {
+    font: inherit; font-weight: 600; font-size: 0.92em; color: var(--ink);
+    background: transparent; border: 1px solid transparent; border-radius: 9px;
+    padding: 7px 11px; cursor: pointer; transition: background 0.15s, border-color 0.15s;
+}
+button:hover { background: rgba(255,255,255,0.06); }
+button.active { background: var(--accent); color: #0B1A12; }
+button.solid { background: var(--panel); border-color: var(--line); }
+button.solid:hover { border-color: var(--accent); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+kbd { font-family: 'JetBrains Mono', monospace; font-size: 0.75em; opacity: 0.6; margin-left: 4px; }
+input[type=range] { accent-color: var(--light); width: 110px; }
+.side { display: flex; flex-direction: column; gap: 12px; }
+.empty { color: var(--muted); font-size: 0.92em; line-height: 1.5; }
+.card-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 3px rgba(255,255,255,0.06); }
+.card-head .name { font-weight: 800; font-size: 1.15em; }
+.badge { font-size: 0.72em; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--panel-2); color: var(--muted); }
+.badge.good { color: var(--accent); }
+.badge.bad { color: var(--danger); }
+.row { display: grid; grid-template-columns: 92px 1fr 54px; align-items: center; gap: 8px; margin: 5px 0; font-size: 0.88em; }
+.row .lbl { color: var(--muted); }
+.row .num { text-align: right; font-variant-numeric: tabular-nums; }
+.facts { font-size: 0.85em; color: var(--muted); margin: 8px 0; line-height: 1.6; }
+.facts b { color: var(--ink); font-weight: 600; }
+.actions { display: flex; gap: 8px; margin: 10px 0; }
+.actions button { flex: 1; }
+.dna { font-family: 'JetBrains Mono', monospace; font-size: 0.72em; line-height: 1.7; word-break: break-all; background: #0B1210; padding: 8px 10px; border-radius: 10px; margin: 8px 0; letter-spacing: 0.04em; }
+.dna .A { color: #6EE7A8; } .dna .C { color: #5AB4FF; } .dna .G { color: #FFD65A; } .dna .T { color: #FF8FB1; }
+details summary { cursor: pointer; color: var(--muted); font-size: 0.85em; font-weight: 600; margin-top: 6px; }
+.genes { margin-top: 6px; }
+.gene { display: grid; grid-template-columns: 110px 1fr 62px; gap: 8px; align-items: center; font-size: 0.8em; margin: 3px 0; }
+.gene .lbl { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gene .num { text-align: right; font-variant-numeric: tabular-nums; }
+.vault { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.slot { position: relative; background: var(--panel-2); border: 2px solid transparent; border-radius: 10px; padding: 3px; cursor: pointer; aspect-ratio: 1 / 1.25; display: flex; flex-direction: column; align-items: center; min-width: 0; }
+.slot.sel { border-color: var(--accent); }
+.slot.emptyslot { cursor: default; opacity: 0.35; }
+.slot canvas { width: 100%; aspect-ratio: 1; border-radius: 7px; background: #0B1210; }
+.slot .nm { font-size: 0.62em; color: var(--muted); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.slot .kind { position: absolute; top: 4px; left: 5px; font-size: 0.7em; }
+.slot .x { position: absolute; top: 0; right: 0; padding: 0 5px; font-size: 0.8em; color: var(--muted); border-radius: 6px; }
+.slot .x:hover { color: var(--danger); }
+canvas#chart { width: 100%; height: auto; display: block; }
+.legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 0.75em; color: var(--muted); margin-top: 6px; }
+.legend span::before { content: ''; display: inline-block; width: 10px; height: 3px; border-radius: 2px; margin-right: 5px; vertical-align: middle; background: var(--c); }
+#log { list-style: none; margin: 0; padding: 0; max-height: 220px; overflow-y: auto; font-size: 0.82em; }
+#log li { padding: 5px 0; border-bottom: 1px solid var(--line); line-height: 1.4; }
+#log .d { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 4px; }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 10; max-width: calc(100% - 32px); }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.hint { font-size: 0.82em; color: var(--muted); margin: 0; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="app">
+    <header>
+        <h1>Evolution <span>Terrarium</span> 🧬</h1>
+        <div class="clock">
+            <span class="chip" id="clock">Day 1 · 06:00</span>
+            <div class="group" id="speed">
+                <button data-speed="0" title="Pause (Space)">⏸</button>
+                <button data-speed="1">1×</button>
+                <button data-speed="5">5×</button>
+                <button data-speed="20">20×</button>
+            </div>
+            <a class="home" href="../index.html">← All games</a>
+        </div>
+    </header>
+
+    <div class="layout">
+        <section class="stage panel">
+            <div class="hud">
+                <div class="tile"><div class="k">💧 Moisture</div><div class="v" id="hMoist">–</div><div class="meter"><i id="mMoist" style="background:var(--water)"></i></div></div>
+                <div class="tile"><div class="k">☀️ Light</div><div class="v" id="hLight">–</div><div class="meter"><i id="mLight" style="background:var(--light)"></i></div></div>
+                <div class="tile"><div class="k">🧪 Nutrients</div><div class="v" id="hNutr">–</div><div class="meter"><i id="mNutr" style="background:var(--nutr)"></i></div></div>
+                <div class="tile"><div class="k">🌫️ Humidity</div><div class="v" id="hHum">–</div><div class="meter"><i id="mHum" style="background:var(--hum)"></i></div></div>
+                <div class="tile"><div class="k">🧬 Diversity</div><div class="v" id="hDiv">–</div><div class="meter"><i id="mDiv" style="background:var(--div)"></i></div></div>
+                <div class="tile"><div class="k">🌿 Population</div><div class="v" id="hPop">–</div><div class="meter"><i id="mPop" style="background:var(--accent)"></i></div></div>
+            </div>
+            <canvas id="tank" width="1000" height="620" aria-label="Terrarium simulation"></canvas>
+            <div class="toolbar">
+                <div class="group" id="tools">
+                    <button data-tool="inspect" class="active">🔍 Inspect<kbd>1</kbd></button>
+                    <button data-tool="spray">💧 Spray<kbd>2</kbd></button>
+                    <button data-tool="fertilize">🧪 Fertilize<kbd>3</kbd></button>
+                    <button data-tool="plant">🌱 Plant<kbd>4</kbd></button>
+                </div>
+                <div class="group">
+                    <button id="lampToggle">💡 Lamp on</button>
+                    <input type="range" id="lampBright" min="0" max="100" aria-label="Lamp brightness">
+                    <span id="lampVal" class="chip" style="padding:3px 8px">80%</span>
+                </div>
+                <div class="group">
+                    <button id="wild">🎲 Wild seed</button>
+                    <button id="mapToggle">🗺️ Soil map</button>
+                    <button id="reset">↺ Reset</button>
+                </div>
+            </div>
+            <p class="hint">Drag the lamp to move it. <b>Spray</b> and <b>Fertilize</b> work where you click or hold. Inspect a plant to read its DNA, then collect a seed (a mutated child) or a cutting (an exact clone) into your vault, and use <b>Plant</b> to grow it anywhere.</p>
+        </section>
+
+        <aside class="side">
+            <div class="panel" id="inspect">
+                <h2>Plant inspector</h2>
+                <div id="card"><p class="empty">Pick the 🔍 tool and tap any plant to see its live stats and genetic code.</p></div>
+            </div>
+            <div class="panel">
+                <h2>Seed vault <span id="vaultCount"></span></h2>
+                <div class="vault" id="vault"></div>
+            </div>
+            <div class="panel">
+                <h2>Evolution over time</h2>
+                <canvas id="chart" width="660" height="220"></canvas>
+                <div class="legend">
+                    <span style="--c:var(--light)">avg light preference</span>
+                    <span style="--c:var(--water)">avg water need</span>
+                    <span style="--c:var(--div)">diversity</span>
+                    <span style="--c:#8FA59A">population</span>
+                </div>
+            </div>
+            <div class="panel">
+                <h2>Ecosystem log</h2>
+                <ul id="log"></ul>
+            </div>
+        </aside>
+    </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+
+// ===================== Constants =====================
+const W = 1000, H = 620;
+const G = { x: 30, y: 44, w: 940, h: 546, r: 26 };          // glass enclosure
+const SOIL_TOP = 494, SOIL_BOT = G.y + G.h - 4;
+const N = 64, SX0 = G.x + 6, CW = (G.w - 12) / N;              // soil cells
+const PX_MIN = G.x + 36, PX_MAX = G.x + G.w - 36;
+const DAY_SECONDS = 40;                                        // real seconds per game day at 1x
+const MAX_ALIVE = 32, MAX_SEEDS = 40, INV_MAX = 10;
+const SAVE_KEY = 'evolution-terrarium-v1';
+
+// The genome. Every gene is a number in [min, max]; DNA is that number encoded as 4 bases.
+const GENES = [
+    { k: 'growthRate',  label: 'Growth rate',      min: 0.4,  max: 1.8 },
+    { k: 'maxHeight',   label: 'Max height',       min: 40,   max: 320 },
+    { k: 'segLen',      label: 'Internode length', min: 8,    max: 22 },
+    { k: 'branchAngle', label: 'Branch angle',     min: 0.15, max: 1.1 },
+    { k: 'splitFreq',   label: 'Split frequency',  min: 0.1,  max: 0.85 },
+    { k: 'branchDepth', label: 'Branch depth',     min: 1,    max: 3.99 },
+    { k: 'curve',       label: 'Stem curl',        min: -0.18, max: 0.18 },
+    { k: 'leafShape',   label: 'Leaf shape',       min: 0,    max: 4.99 },
+    { k: 'leafSize',    label: 'Leaf size',        min: 3,    max: 13 },
+    { k: 'leafDensity', label: 'Leaf density',     min: 0.25, max: 1 },
+    { k: 'leafHue',     label: 'Leaf colour',      min: 0,    max: 360 },
+    { k: 'stemHue',     label: 'Stem colour',      min: 20,   max: 130 },
+    { k: 'flowerHue',   label: 'Flower colour',    min: 0,    max: 360 },
+    { k: 'flowering',   label: 'Flowering',        min: 0,    max: 1 },
+    { k: 'waterNeed',   label: 'Water need',       min: 0.08, max: 0.92 },
+    { k: 'nutrientUse', label: 'Nutrient use',     min: 0.05, max: 1 },
+    { k: 'lightPref',   label: 'Light preference', min: 0.05, max: 0.95 },
+    { k: 'tolerance',   label: 'Hardiness',        min: 0.1,  max: 0.3 },
+    { k: 'seedRate',    label: 'Seed drop rate',   min: 0.1,  max: 1.2 },
+    { k: 'seedRange',   label: 'Seed range',       min: 30,   max: 220 },
+    { k: 'lifespan',    label: 'Lifespan',         min: 6,    max: 24 }
+];
+const WRAP = new Set(['leafHue', 'flowerHue']);
+const COSMETIC = new Set(['leafHue', 'stemHue', 'flowerHue']);
+const LEAF_SHAPES = ['Oval', 'Needle', 'Round', 'Heart', 'Fern'];
+const SPECIES_SPLIT = 0.1;   // genetic distance from the founder at which a new species is declared
+
+// ===================== Helpers =====================
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const lerp = (a, b, t) => a + (b - a) * t;
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+const gauss = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
+const match = (v, ideal, tol) => Math.exp(-0.5 * ((v - ideal) / tol) ** 2);
+const norm = (gene, v) => (v - gene.min) / (gene.max - gene.min);
+const hueLerp = (a, b, t) => a + ((((b - a) % 360) + 540) % 360 - 180) * t;
+const pct = v => `${Math.round(v * 100)}%`;
+function mulberry32(a) {
+    return () => {
+        a |= 0; a = a + 0x6D2B79F5 | 0;
+        let t = Math.imul(a ^ a >>> 15, 1 | a);
+        t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+}
+function noise1(t) {   // smooth 1D value noise in [0, 1]
+    const hash = n => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); };
+    const i = Math.floor(t), f = t - i, u = f * f * (3 - 2 * f);
+    return lerp(hash(i), hash(i + 1), u);
+}
+
+// ===================== State =====================
+let S;                 // everything that gets saved
+let selected = null;   // inspected plant
+let tool = 'inspect';
+const trees = new Map();
+const particles = [];
+const pointer = { x: 0, y: 0, inside: false, down: false };
+
+const cellOf = x => clamp(Math.floor((x - SX0) / CW), 0, N - 1);
+const cellX = i => SX0 + (i + 0.5) * CW;
+
+function spread(arr, x, total, r) {   // add `total` spread over cells as a Gaussian bump
+    const c = cellOf(x), lo = Math.max(0, c - Math.ceil(r * 3)), hi = Math.min(N - 1, c + Math.ceil(r * 3));
+    let sum = 0;
+    const w = [];
+    for (let i = lo; i <= hi; i++) { w[i] = Math.exp(-0.5 * ((i - c) / r) ** 2); sum += w[i]; }
+    for (let i = lo; i <= hi; i++) arr[i] = clamp(arr[i] + total * w[i] / sum, 0, 1);
+}
+function takeLocal(arr, x, amount) {   // roots draw from the cell under the plant and its neighbours
+    const c = cellOf(x), idx = [c - 1, c, c + 1].filter(i => i >= 0 && i < N);
+    const avail = idx.reduce((s, i) => s + arr[i], 0);
+    if (avail <= 0 || amount <= 0) return 0;
+    const t = Math.min(amount, avail * 0.9);
+    for (const i of idx) arr[i] -= t * arr[i] / avail;
+    return t;
+}
+function localAvg(arr, x) {
+    const c = cellOf(x), idx = [c - 1, c, c + 1].filter(i => i >= 0 && i < N);
+    return idx.reduce((s, i) => s + arr[i], 0) / idx.length;
+}
+function diffuse(arr, k) {
+    k = Math.min(k, 0.24);
+    const prev = arr.slice();
+    for (let i = 0; i < N; i++) arr[i] = prev[i] + k * (prev[Math.max(0, i - 1)] + prev[Math.min(N - 1, i + 1)] - 2 * prev[i]);
+}
+
+// ===================== Genetics =====================
+const SYL1 = ['Fern', 'Moss', 'Ivy', 'Bel', 'Clo', 'Pip', 'Tan', 'Wil', 'Ros', 'Myr', 'Sol', 'Lum', 'Bry', 'Fen', 'Gla', 'Thy', 'Dew', 'Zin', 'Oro', 'Vel', 'Kel', 'Asp', 'Nym', 'Quil'];
+const SYL2 = ['wick', 'bell', 'leaf', 'sprig', 'wort', 'frond', 'bloom', 'vine', 'ling', 'cap', 'tuft', 'drop', 'curl', 'spire', 'thorn', 'weed', 'fan'];
+function newSpeciesName() {
+    for (let i = 0; i < 60; i++) {
+        const n = pick(SYL1) + pick(SYL2);
+        if (!S.species[n]) return n;
+    }
+    return pick(SYL1) + pick(SYL2) + '-' + Object.keys(S.species).length;
+}
+
+function randomGenome() {
+    const g = {};
+    for (const gene of GENES) g[gene.k] = rand(gene.min, gene.max);
+    // Wild founders are biased towards things that can survive a typical tank.
+    g.waterNeed = rand(0.25, 0.7);
+    g.lightPref = rand(0.12, 0.85);
+    g.maxHeight = rand(60, 230);
+    g.leafHue = Math.random() < 0.8 ? rand(75, 150) : rand(260, 350);
+    g.shapeSeed = Math.floor(Math.random() * 1e9);
+    g.species = newSpeciesName();
+    return g;
+}
+
+function mutate(parent) {
+    const g = { ...parent };
+    for (const gene of GENES) {
+        let sd = (gene.max - gene.min) * 0.045;
+        if (Math.random() < 0.04) sd *= 4;   // occasional big jump
+        g[gene.k] += gauss() * sd;
+        g[gene.k] = WRAP.has(gene.k) ? (g[gene.k] + 360) % 360 : clamp(g[gene.k], gene.min, gene.max);
+    }
+    g.shapeSeed = Math.floor(Math.random() * 1e9);
+    return g;
+}
+
+function geneDistance(a, b) {
+    let d = 0, n = 0;
+    for (const gene of GENES) {
+        if (COSMETIC.has(gene.k)) continue;
+        d += Math.abs(norm(gene, a[gene.k]) - norm(gene, b[gene.k]));
+        n++;
+    }
+    return d / n;
+}
+
+// Registers a genome's species, or declares a new species if it has drifted far from its founder.
+function speciate(g) {
+    const sp = S.species[g.species];
+    if (!sp) {
+        S.species[g.species] = { founder: { ...g }, hue: g.leafHue, born: S.time, parent: null };
+        return g;
+    }
+    if (geneDistance(g, sp.founder) > SPECIES_SPLIT) {
+        const parentName = g.species;
+        g.species = newSpeciesName();
+        S.species[g.species] = { founder: { ...g }, hue: g.leafHue, born: S.time, parent: parentName };
+        log(`🧬 New species <b>${g.species}</b> evolved from ${parentName}`);
+    }
+    return g;
+}
+
+function dnaString(g) {
+    let s = '';
+    for (const gene of GENES) {
+        const q = Math.round(clamp(norm(gene, g[gene.k]), 0, 1) * 255);
+        for (let shift = 6; shift >= 0; shift -= 2) s += 'ACGT'[(q >> shift) & 3];
+    }
+    return s;
+}
+
+function fmtGene(k, v) {
+    switch (k) {
+        case 'growthRate': return v.toFixed(2) + '×';
+        case 'maxHeight': case 'segLen': case 'seedRange': return Math.round(v) + 'px';
+        case 'branchAngle': case 'curve': return Math.round(v * 57.3) + '°';
+        case 'branchDepth': return String(Math.floor(v));
+        case 'leafShape': return LEAF_SHAPES[Math.floor(v)];
+        case 'leafSize': return v.toFixed(1);
+        case 'leafHue': case 'stemHue': case 'flowerHue': return Math.round(v) + '°';
+        case 'tolerance': return '±' + Math.round(v * 100) + '%';
+        case 'seedRate': return v.toFixed(2) + '/d';
+        case 'lifespan': return v.toFixed(1) + ' d';
+        default: return pct(v);
+    }
+}
+
+// ===================== Procedural plant structure =====================
+function buildTree(g) {
+    const rng = mulberry32(g.shapeSeed);
+    const segs = clamp(Math.round(g.maxHeight / g.segLen), 3, 16);
+    const maxOrder = Math.floor(g.branchDepth);
+    const step = Math.max(1, Math.ceil(segs * 0.22));
+    const nodes = [];
+    const queue = [{ p: -1, a: (rng() - 0.5) * 0.12, len: g.segLen, order: 0, seg: 0, dir: rng() < 0.5 ? -1 : 1 }];
+    while (queue.length && nodes.length < 240) {
+        const it = queue.shift();
+        const par = it.p >= 0 ? nodes[it.p] : null;
+        const n = { p: it.p, a: it.a, len: it.len, order: it.order, dist: (par ? par.dist : 0) + it.len, leaves: [], kids: 0, sway: rng() * 6.283 };
+        const i = nodes.push(n) - 1;
+        if (par) par.kids++;
+        if ((it.seg > 0 || it.order > 0) && rng() < g.leafDensity) {
+            const side = rng() < 0.5 ? -1 : 1;
+            n.leaves.push({ side, spread: 0.6 + rng() * 0.6, size: 0.7 + rng() * 0.5 });
+            if (rng() < g.leafDensity * 0.7) n.leaves.push({ side: -side, spread: 0.6 + rng() * 0.6, size: 0.7 + rng() * 0.5 });
+        }
+        if (it.seg < segs - it.order * step) {
+            const bend = g.curve * it.dir + (it.order > 0 ? -it.dir * 0.09 : 0);
+            queue.push({ p: i, a: bend + (rng() - 0.5) * 0.18, len: it.len * 0.96, order: it.order, seg: it.seg + 1, dir: it.dir });
+            if (it.order < maxOrder && it.seg >= 1) {
+                for (const side of [-1, 1]) {
+                    if (rng() < g.splitFreq * (it.order ? 0.8 : 1)) {
+                        queue.push({ p: i, a: side * (g.branchAngle + (rng() - 0.5) * 0.2), len: it.len * 0.8, order: it.order + 1, seg: 0, dir: side });
+                    }
+                }
+            }
+        }
+    }
+    // Measure the resting height so the fully grown plant matches its maxHeight gene.
+    const abs = [], ys = [];
+    let minY = 0, maxDist = 0;
+    nodes.forEach((n, i) => {
+        abs[i] = (n.p >= 0 ? abs[n.p] : 0) + n.a;
+        ys[i] = (n.p >= 0 ? ys[n.p] : 0) - Math.cos(abs[i]) * n.len;
+        minY = Math.min(minY, ys[i]);
+        maxDist = Math.max(maxDist, n.dist);
+    });
+    for (const n of nodes) {
+        n.s = (n.dist - n.len) / maxDist * 0.95;   // growth level at which this segment starts
+        n.e = n.dist / maxDist * 0.95 + 0.05;      // growth level at which it is complete
+    }
+    const roots = [];
+    const rootCount = 3 + Math.floor(rng() * 3);
+    for (let r = 0; r < rootCount; r++) roots.push({ a: (rng() - 0.5) * 2.2, len: 0.6 + rng() * 0.6, bend: (rng() - 0.5) * 0.8 });
+    return { nodes, roots, maxDist, k: clamp(g.maxHeight / Math.max(10, -minY), 0.4, 3) };
+}
+function getTree(key, g) {
+    if (!trees.has(key)) trees.set(key, buildTree(g));
+    return trees.get(key);
+}
+
+// ===================== Plants =====================
+function makePlant(g, x, gen, growth = 0.03, health = 0.8) {
+    return { id: S.nextId++, g, x, gen, growth, health, age: 0, dead: false, deadTime: 0, lightAvg: 0.4, offspring: 0, eaten: 0, store: 0 };
+}
+const alivePlants = () => S.plants.filter(p => !p.dead);
+
+function daylight(t) { return clamp(Math.sin((t % 1) * 2 * Math.PI) * 1.4, 0, 1); }   // phase 0 = 6am
+function lampLight(x) {
+    if (!S.lamp.on) return 0;
+    return S.lamp.bright * 0.95 * Math.exp(-0.5 * ((x - S.lamp.x) / (G.w * 0.18)) ** 2);
+}
+const lightAtX = x => Math.min(1, S.sunL + lampLight(x));
+
+function lightFor(p) {
+    let light = lightAtX(p.x);
+    if (p.bbox) {   // taller neighbours overlapping this plant cast shade
+        let shade = 0;
+        const width = p.bbox.maxX - p.bbox.minX + 1;
+        for (const q of S.plants) {
+            if (q === p || q.dead || !q.bbox || q.bbox.top >= p.bbox.top - 5) continue;
+            const overlap = Math.min(q.bbox.maxX, p.bbox.maxX) - Math.max(q.bbox.minX, p.bbox.minX);
+            if (overlap > 0) shade += (overlap / width) * 0.35 * q.growth;
+        }
+        light *= 1 - Math.min(0.7, shade);
+    }
+    return light;
+}
+
+function updatePlant(p, dt) {
+    const g = p.g;
+    if (p.dead) {
+        // Decomposition: stored biomass returns to the soil between 0.3 and 2 days after death.
+        const before = clamp((p.deadTime - 0.3) / 1.7, 0, 1);
+        p.deadTime += dt;
+        const after = clamp((p.deadTime - 0.3) / 1.7, 0, 1);
+        if (after > before) spread(S.n, p.x, p.store * (after - before), 2.5);
+        if (p.deadTime < 1.1 && p.bbox && Math.random() < dt * 30) {
+            particles.push({ type: 'leaf', x: rand(p.bbox.minX, p.bbox.maxX), y: rand(p.bbox.top, SOIL_TOP - 4), vx: rand(-12, 12), vy: rand(8, 20),
+                rot: rand(0, 6.28), vr: rand(-2, 2), life: 1, color: `hsl(${hueLerp(g.leafHue, 32, 0.8)}, 40%, 38%)` });
+        }
+        return;
+    }
+    p.age += dt;
+    p.lightAvg += (lightFor(p) - p.lightAvg) * Math.min(1, dt * 3);
+    const lm = localAvg(S.m, p.x), ln = localAvg(S.n, p.x);
+    const mW = match(lm, g.waterNeed, g.tolerance);
+    const mL = match(p.lightAvg, g.lightPref, g.tolerance);
+    const nF = clamp(ln / (0.05 + 0.3 * g.nutrientUse), 0, 1);
+    const fit = Math.cbrt(mW * mL * Math.max(0.05, nF));
+    p.st = { lm, ln, mW, mL, nF, fit };
+    const hf = g.maxHeight / 160;
+
+    // Water uptake; some is transpired back into the air
+    const drank = takeLocal(S.m, p.x, (0.02 + 0.08 * p.growth * hf) * (0.4 + g.waterNeed) * dt);
+    S.air += drank * 0.6 / N;
+
+    if (fit > 0.45) {
+        p.health = Math.min(1, p.health + (fit - 0.45) * 1.4 * dt);
+        if (p.growth < 1) {
+            let dg = g.growthRate * (0.7 + 0.6 * g.nutrientUse) * 0.5 * (fit - 0.35) * dt * (1 - p.growth * 0.5);
+            const needN = dg * (0.15 + 0.45 * g.nutrientUse) * hf;
+            const gotN = takeLocal(S.n, p.x, needN);
+            if (needN > 0) dg *= gotN / needN;
+            p.eaten += gotN;
+            p.growth = Math.min(1, p.growth + dg);
+        }
+    } else {
+        p.health -= (0.45 - fit) * 1.5 * dt;
+    }
+    if (p.age > g.lifespan) p.health -= 0.3 * dt * (1 + (p.age - g.lifespan) * 0.4);
+    if (p.growth > 0.7 && p.health > 0.55 && Math.random() < g.seedRate * p.health * dt) launchSeed(p);
+    if (p.health <= 0) die(p);
+}
+
+function die(p) {
+    p.dead = true;
+    p.health = 0;
+    p.deadTime = 0;
+    p.store = 0.8 * p.eaten + 0.06 * (0.3 + p.growth) * (p.g.maxHeight / 160);
+    let cause;
+    if (p.age > p.g.lifespan && p.st && p.st.fit > 0.45) cause = 'old age';
+    else {
+        const st = p.st || { mW: 1, mL: 1, nF: 1, lm: 0, ln: 0 };
+        cause = [
+            { m: st.mW, why: st.lm < p.g.waterNeed ? 'drought' : 'waterlogging' },
+            { m: st.mL, why: p.lightAvg < p.g.lightPref ? 'darkness' : 'scorching light' },
+            { m: st.nF, why: 'starvation' }
+        ].sort((a, b) => a.m - b.m)[0].why;
+    }
+    log(`🥀 ${p.g.species} (gen ${p.gen}) died of ${cause}`);
+}
+
+function freeSpot(x, minD = 24) {
+    return x >= PX_MIN && x <= PX_MAX && !S.plants.some(q => !q.dead && Math.abs(q.x - x) < minD);
+}
+
+function launchSeed(p) {
+    if (S.seeds.length >= MAX_SEEDS) return;
+    const top = p.bbox ? p.bbox.top : SOIL_TOP - 40;
+    const x0 = p.x + rand(-8, 8), y0 = top + rand(0, 20);
+    const xl = clamp(x0 + (Math.random() * 2 - 1) * p.g.seedRange, PX_MIN, PX_MAX);
+    const T = rand(0.9, 1.4), grav = 500;
+    S.seeds.push({ x: x0, y: y0, vx: (xl - x0) / T, vy: (SOIL_TOP - 2 - y0 - 0.5 * grav * T * T) / T, grav,
+        g: mutate(p.g), gen: p.gen + 1, landed: false, wait: rand(0.2, 0.5), hue: p.g.stemHue });
+    p.offspring++;
+}
+
+function germinate(s) {
+    if (alivePlants().length >= MAX_ALIVE || !freeSpot(s.x)) return;
+    // The seed only sprouts if this spot looks roughly right for it: natural selection starts here.
+    const potentialLight = Math.min(1, 0.22 + lampLight(s.x));
+    const chance = 0.2 + 0.8 * Math.sqrt(match(localAvg(S.m, s.x), s.g.waterNeed, s.g.tolerance) * match(potentialLight, s.g.lightPref, s.g.tolerance));
+    if (Math.random() > chance) return;
+    const p = makePlant(speciate(s.g), s.x, s.gen);
+    S.plants.push(p);
+    if (p.gen > S.maxGen) {
+        S.maxGen = p.gen;
+        if (p.gen % 5 === 0) log(`🌱 Generation ${p.gen} reached (${p.g.species})`);
+    }
+}
+
+// ===================== Simulation =====================
+function simulate(dt) {
+    S.time += dt;
+    const day = daylight(S.time);
+    S.cloud = 0.55 + 0.45 * noise1(S.time * 4 + S.cloudSeed);
+    S.sunL = 0.55 * day * S.cloud;
+
+    // Soil water and nutrients diffuse sideways through the soil
+    diffuse(S.m, 1.5 * dt);
+    diffuse(S.n, 0.3 * dt);
+
+    // Water cycle: evaporation -> humid air -> condensation (more at night) -> soil
+    let evap = 0;
+    for (let i = 0; i < N; i++) {
+        const e = S.m[i] * 0.1 * (0.3 + lightAtX(cellX(i))) * dt;
+        S.m[i] -= e;
+        evap += e;
+    }
+    S.air += evap / N;
+    const cond = S.air * (0.25 + (1 - day) * 0.45) * dt;
+    S.air -= cond + S.air * 0.05 * dt;   // a little escapes through the vents
+    for (let i = 0; i < N; i++) S.m[i] = Math.min(1, S.m[i] + cond);
+    for (let i = 0; i < N; i++) S.n[i] = Math.min(1, S.n[i] + 0.002 * dt);   // slow mineral weathering
+
+    for (const p of [...S.plants]) updatePlant(p, dt);
+
+    for (const s of S.seeds) if (s.landed) s.wait -= dt;
+    for (const s of S.seeds.filter(s => s.landed && s.wait <= 0)) germinate(s);
+    S.seeds = S.seeds.filter(s => !(s.landed && s.wait <= 0));
+
+    S.plants = S.plants.filter(p => !(p.dead && p.deadTime > 2.2));
+    if (selected && !S.plants.includes(selected)) { selected = null; renderCard(); }
+    for (const key of trees.keys()) if (typeof key === 'number' && !S.plants.some(p => p.id === key)) trees.delete(key);
+
+    if (S.time - S.lastSample > 0.2) { S.lastSample = S.time; sampleHistory(); }
+    if (Math.floor(S.time) !== Math.floor(S.time - dt)) pruneSpecies();
+}
+
+function diversity() {
+    const counts = {};
+    const alive = alivePlants();
+    for (const p of alive) counts[p.g.species] = (counts[p.g.species] || 0) + 1;
+    let h = 0;
+    for (const c of Object.values(counts)) { const q = c / alive.length; h -= q * Math.log(q); }
+    return { h, species: Object.keys(counts).length };
+}
+
+function sampleHistory() {
+    const alive = alivePlants();
+    const mean = k => alive.length ? alive.reduce((s, p) => s + p.g[k], 0) / alive.length : null;
+    S.history.push({ pop: alive.length / MAX_ALIVE, div: Math.min(1, diversity().h / Math.log(10)), light: mean('lightPref'), water: mean('waterNeed') });
+    if (S.history.length > 300) S.history.shift();
+}
+
+function pruneSpecies() {
+    const used = new Set([...S.plants.map(p => p.g.species), ...S.seeds.map(s => s.g.species), ...S.inventory.map(i => i.g.species)]);
+    for (const name of Object.keys(S.species)) if (!used.has(name)) delete S.species[name];
+}
+
+// ===================== Rendering =====================
+const canvas = document.getElementById('tank');
+const ctx = canvas.getContext('2d');
+const dpr = Math.min(2, window.devicePixelRatio || 1);
+canvas.width = W * dpr;
+canvas.height = H * dpr;
+ctx.scale(dpr, dpr);
+
+const sceneRng = mulberry32(7);
+const pebbles = Array.from({ length: 90 }, () => ({ x: G.x + 8 + sceneRng() * (G.w - 16), y: SOIL_BOT - 4 - sceneRng() * 24, r: 2.5 + sceneRng() * 5, l: 40 + sceneRng() * 30 }));
+const grains = Array.from({ length: 220 }, () => ({ x: G.x + 8 + sceneRng() * (G.w - 16), y: SOIL_TOP + 6 + sceneRng() * (SOIL_BOT - SOIL_TOP - 34), r: 0.6 + sceneRng() * 1.2 }));
+const droplets = Array.from({ length: 80 }, () => ({ x: G.x + 10 + sceneRng() * (G.w - 20), y: G.y + 14 + sceneRng() * (SOIL_TOP - G.y - 40), r: 0.8 + sceneRng() * 2.4 }));
+const stars = Array.from({ length: 60 }, () => ({ x: sceneRng() * W, y: sceneRng() * H * 0.9, r: 0.5 + sceneRng() * 1.2, tw: sceneRng() * 6 }));
+
+function plantPalette(g, health, dead) {
+    if (dead) return { stem: 'hsl(30, 25%, 28%)', leaf: 'hsl(32, 35%, 34%)', rib: 'hsl(30, 30%, 24%)' };
+    const k = clamp((0.75 - health) / 0.75, 0, 1);   // stress turns foliage yellow-brown
+    const lh = hueLerp(g.leafHue, 42, k);
+    return {
+        stem: `hsl(${hueLerp(g.stemHue, 38, k)}, ${lerp(40, 30, k)}%, ${lerp(30, 34, k)}%)`,
+        leaf: `hsl(${lh}, ${lerp(58, 42, k)}%, ${lerp(40, 50, k)}%)`,
+        rib: `hsl(${lh}, ${lerp(50, 35, k)}%, ${lerp(28, 38, k)}%)`
+    };
+}
+
+function drawLeaf(c, shape, s, pal) {
+    c.fillStyle = pal.leaf;
+    c.strokeStyle = pal.rib;
+    switch (shape) {
+        case 1: // needle cluster
+            c.strokeStyle = pal.leaf;
+            c.lineWidth = Math.max(1, s * 0.18);
+            for (const a of [-0.35, 0, 0.35]) {
+                c.beginPath(); c.moveTo(0, 0); c.lineTo(Math.sin(a) * s * 1.8, -Math.cos(a) * s * 1.8); c.stroke();
+            }
+            return;
+        case 2: // round
+            c.beginPath(); c.arc(0, -s * 0.8, s * 0.8, 0, Math.PI * 2); c.fill();
+            return;
+        case 3: // heart
+            c.beginPath();
+            c.moveTo(0, 0);
+            c.bezierCurveTo(-s, -s * 0.6, -s * 0.7, -s * 1.8, 0, -s * 1.35);
+            c.bezierCurveTo(s * 0.7, -s * 1.8, s, -s * 0.6, 0, 0);
+            c.fill();
+            break;
+        case 4: // fern frond
+            c.lineWidth = 1;
+            c.beginPath(); c.moveTo(0, 0); c.lineTo(0, -s * 2); c.stroke();
+            for (let j = 1; j <= 4; j++) {
+                const y = -s * 0.45 * j, ss = s * 0.42 * (1 - j * 0.12);
+                c.beginPath(); c.ellipse(-ss * 0.9, y, ss, ss * 0.35, -0.5, 0, Math.PI * 2); c.fill();
+                c.beginPath(); c.ellipse(ss * 0.9, y, ss, ss * 0.35, 0.5, 0, Math.PI * 2); c.fill();
+            }
+            return;
+        default: // oval
+            c.beginPath(); c.ellipse(0, -s, s * 0.42, s, 0, 0, Math.PI * 2); c.fill();
+    }
+    c.lineWidth = 0.8;
+    c.beginPath(); c.moveTo(0, 0); c.lineTo(0, -s * 1.5); c.stroke();
+}
+
+// Draws a plant with its base at (p.x, baseY). Used for the tank and for vault thumbnails.
+function drawPlant(c, p, t, baseY, treeKey) {
+    const g = p.g, tree = getTree(treeKey, g), nodes = tree.nodes;
+    const dt = p.deadTime || 0;
+    const wilt = p.dead ? Math.min(1.2, 0.4 + dt * 0.8) : Math.max(0, 0.55 - p.health) * 1.4;
+    const grow = 0.45 + 0.55 * p.growth;
+    const scale = grow * tree.k;
+    const pal = plantPalette(g, p.health, p.dead);
+    const sink = p.dead ? Math.max(0, dt - 0.8) * 14 : 0;   // decomposing plants slump into the soil
+    c.globalAlpha = p.dead ? clamp(1 - (dt - 1) / 1.2, 0, 1) : 1;
+    const pos = new Array(nodes.length);
+    const bbox = { minX: p.x - 4, maxX: p.x + 4, top: baseY - 4 };
+    const shape = Math.floor(g.leafShape);
+
+    c.lineCap = 'round';
+    c.strokeStyle = pal.stem;
+    for (let i = 0; i < nodes.length; i++) {
+        const n = nodes[i];
+        const par = n.p >= 0 ? pos[n.p] : { x: p.x, y: baseY + 2 + sink, a: 0, f: 1 };
+        if (!par || par.f < 1 || p.growth < n.s) continue;
+        const f = Math.min(1, (p.growth - n.s) / (n.e - n.s));
+        let a = par.a + n.a + (p.dead ? 0 : Math.sin(t * 1.2 + n.sway + p.x * 0.01) * 0.012 * (n.order + 1));
+        a += (a >= 0 ? 1 : -1) * wilt * 0.2;
+        a = clamp(a, -2.7, 2.7);
+        const L = n.len * scale * f;
+        const x = par.x + Math.sin(a) * L, y = Math.min(baseY + 2, par.y - Math.cos(a) * L);
+        c.lineWidth = Math.max(0.7, (1.2 + g.maxHeight / 90) * grow * (1 - n.order * 0.22) * (1 - n.dist / tree.maxDist * 0.4));
+        c.beginPath(); c.moveTo(par.x, par.y); c.lineTo(x, y); c.stroke();
+        pos[i] = { x, y, a, f };
+        if (x < bbox.minX) bbox.minX = x;
+        if (x > bbox.maxX) bbox.maxX = x;
+        if (y < bbox.top) bbox.top = y;
+    }
+
+    for (let i = 0; i < nodes.length; i++) {
+        const n = nodes[i], q = pos[i];
+        if (!q || q.f < 1) continue;
+        const lg = clamp((p.growth - n.e) * 6 + 0.25, 0, 1);
+        for (let j = 0; j < n.leaves.length; j++) {
+            if (p.dead && ((i * 7 + j * 13) % 10) / 10 < dt / 1.1) continue;   // leaves have fallen
+            const lf = n.leaves[j];
+            const s = g.leafSize * lf.size * lg * grow;
+            if (s < 0.6) continue;
+            c.save();
+            c.translate(q.x, q.y);
+            c.rotate(q.a + lf.side * (lf.spread + wilt * 0.8));
+            drawLeaf(c, shape, s, pal);
+            c.restore();
+            bbox.minX = Math.min(bbox.minX, q.x - s); bbox.maxX = Math.max(bbox.maxX, q.x + s); bbox.top = Math.min(bbox.top, q.y - s * 1.8);
+        }
+        if (n.kids === 0 && g.flowering > 0.5 && p.growth > 0.8 && p.health > 0.55 && !p.dead) {
+            const r = Math.max(2, g.leafSize * 0.4) * clamp((p.growth - 0.8) * 8, 0.3, 1);
+            c.fillStyle = `hsl(${g.flowerHue}, 78%, 68%)`;
+            for (let k = 0; k < 5; k++) {
+                const ang = k * Math.PI * 0.4 + t * 0.15;
+                c.beginPath(); c.arc(q.x + Math.cos(ang) * r, q.y + Math.sin(ang) * r, r * 0.68, 0, Math.PI * 2); c.fill();
+            }
+            c.fillStyle = '#FFE066';
+            c.beginPath(); c.arc(q.x, q.y, r * 0.48, 0, Math.PI * 2); c.fill();
+        }
+    }
+    c.globalAlpha = 1;
+    return bbox;
+}
+
+function drawRoots(p) {
+    const tree = getTree(p.id, p.g);
+    const L0 = p.g.maxHeight * 0.22 * (0.2 + 0.8 * p.growth);
+    ctx.strokeStyle = p.dead ? 'rgba(120, 90, 60, 0.25)' : 'rgba(235, 215, 175, 0.35)';
+    ctx.lineWidth = 1.2;
+    for (const r of tree.roots) {
+        const L = L0 * r.len;
+        const ex = p.x + Math.sin(r.a) * L, ey = Math.min(SOIL_BOT - 30, SOIL_TOP + 3 + Math.cos(r.a) * L * 0.7);
+        ctx.beginPath();
+        ctx.moveTo(p.x, SOIL_TOP + 2);
+        ctx.quadraticCurveTo(p.x + Math.sin(r.a + r.bend) * L * 0.5, SOIL_TOP + 3 + L * 0.3, ex, ey);
+        ctx.stroke();
+    }
+}
+
+function roundRect(c, x, y, w, h, r) {
+    c.beginPath();
+    c.moveTo(x + r, y);
+    c.arcTo(x + w, y, x + w, y + h, r);
+    c.arcTo(x + w, y + h, x, y + h, r);
+    c.arcTo(x, y + h, x, y, r);
+    c.arcTo(x, y, x + w, y, r);
+    c.closePath();
+}
+const mix = (a, b, t) => a.map((v, i) => Math.round(lerp(v, b[i], t)));
+const rgb = (a, alpha = 1) => `rgba(${a[0]}, ${a[1]}, ${a[2]}, ${alpha})`;
+
+function render(t) {
+    const day = daylight(S.time);
+    const phase = S.time % 1;
+    const dusk = clamp(1 - Math.abs(day - 0.35) / 0.35, 0, 1) * (day < 0.9 ? 1 : 0);
+
+    // Room behind the glass
+    let top = mix([10, 18, 40], [196, 226, 240], day), bot = mix([16, 28, 46], [226, 240, 232], day);
+    top = mix(top, [250, 170, 120], dusk * 0.45);
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, rgb(top)); bg.addColorStop(1, rgb(bot));
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+    if (day < 0.5) {
+        for (const s of stars) {
+            ctx.fillStyle = `rgba(255, 255, 255, ${(1 - day * 2) * (0.4 + 0.4 * Math.sin(t * 2 + s.tw))})`;
+            ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+        }
+    }
+    // Table
+    ctx.fillStyle = rgb(mix([40, 30, 24], [150, 108, 72], day));
+    ctx.fillRect(0, SOIL_BOT, W, H - SOIL_BOT);
+
+    // Inside the glass
+    ctx.save();
+    roundRect(ctx, G.x, G.y, G.w, G.h, G.r);
+    ctx.clip();
+    ctx.fillStyle = 'rgba(220, 245, 255, 0.10)';
+    ctx.fillRect(G.x, G.y, G.w, G.h);
+
+    // Sun shafts drifting with the time of day
+    if (S.sunL > 0.03) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const sx = lerp(G.x + G.w, G.x, phase * 2);
+        for (let i = 0; i < 4; i++) {
+            const x = sx + (i - 1.5) * 160;
+            const grd = ctx.createLinearGradient(0, G.y, 0, SOIL_TOP);
+            grd.addColorStop(0, `rgba(255, 240, 200, ${0.09 * S.sunL})`);
+            grd.addColorStop(1, 'rgba(255, 240, 200, 0)');
+            ctx.fillStyle = grd;
+            ctx.beginPath();
+            ctx.moveTo(x, G.y); ctx.lineTo(x + 50, G.y); ctx.lineTo(x - 70, SOIL_TOP); ctx.lineTo(x - 150, SOIL_TOP);
+            ctx.fill();
+        }
+        ctx.restore();
+    }
+    // Lamp beam
+    if (S.lamp.on && S.lamp.bright > 0) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const beam = ctx.createRadialGradient(S.lamp.x, G.y + 40, 10, S.lamp.x, G.y + 40, 470);
+        beam.addColorStop(0, `rgba(255, 225, 140, ${0.32 * S.lamp.bright})`);
+        beam.addColorStop(1, 'rgba(255, 225, 140, 0)');
+        ctx.fillStyle = beam;
+        ctx.beginPath();
+        ctx.moveTo(S.lamp.x - 26, G.y + 40); ctx.lineTo(S.lamp.x + 26, G.y + 40);
+        ctx.lineTo(S.lamp.x + 300, SOIL_TOP); ctx.lineTo(S.lamp.x - 300, SOIL_TOP);
+        ctx.fill();
+        ctx.restore();
+    }
+    // Humid air layer
+    const hum = clamp(S.air / 0.3, 0, 1);
+    const mist = ctx.createLinearGradient(0, SOIL_TOP - 200, 0, SOIL_TOP);
+    mist.addColorStop(0, 'rgba(225, 240, 250, 0)');
+    mist.addColorStop(1, `rgba(225, 240, 250, ${0.08 + hum * 0.22})`);
+    ctx.fillStyle = mist;
+    ctx.fillRect(G.x, SOIL_TOP - 200, G.w, 200);
+
+    // Soil: each column's colour shows its moisture
+    for (let i = 0; i < N; i++) {
+        const m = S.m[i];
+        ctx.fillStyle = rgb(mix([156, 116, 74], [56, 38, 26], clamp(m * 1.2, 0, 1)));
+        ctx.fillRect(SX0 + i * CW - 0.5, SOIL_TOP, CW + 1, SOIL_BOT - SOIL_TOP);
+    }
+    const humus = ctx.createLinearGradient(0, SOIL_TOP, 0, SOIL_TOP + 14);
+    humus.addColorStop(0, 'rgba(30, 20, 12, 0.45)');
+    humus.addColorStop(1, 'rgba(30, 20, 12, 0)');
+    ctx.fillStyle = humus;
+    ctx.fillRect(G.x, SOIL_TOP, G.w, 14);
+    for (const gr of grains) {
+        const n = S.n[cellOf(gr.x)];
+        ctx.fillStyle = `rgba(150, 210, 110, ${clamp(n * 0.9, 0, 0.8)})`;   // nutrient-rich soil sparkles green
+        ctx.fillRect(gr.x, gr.y, gr.r, gr.r);
+    }
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    ctx.fillRect(G.x, SOIL_BOT - 30, G.w, 30);
+    for (const pb of pebbles) {
+        ctx.fillStyle = `hsl(30, 6%, ${pb.l}%)`;
+        ctx.beginPath(); ctx.arc(pb.x, pb.y, pb.r, 0, Math.PI * 2); ctx.fill();
+    }
+
+    for (const p of S.plants) drawRoots(p);
+
+    if (S.showMap) {
+        ctx.fillStyle = 'rgba(90, 180, 255, 0.55)';
+        for (let i = 0; i < N; i++) {
+            const h = S.m[i] * (SOIL_BOT - SOIL_TOP - 36);
+            ctx.fillRect(SX0 + i * CW + 1, SOIL_BOT - 32 - h, CW - 2, h);
+        }
+        ctx.strokeStyle = '#9BDB6A';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        for (let i = 0; i < N; i++) {
+            const y = SOIL_BOT - 32 - S.n[i] * (SOIL_BOT - SOIL_TOP - 36);
+            i ? ctx.lineTo(cellX(i), y) : ctx.moveTo(cellX(i), y);
+        }
+        ctx.stroke();
+        ctx.font = '600 12px Inter, sans-serif';
+        ctx.fillStyle = '#FFFFFF';
+        ctx.textAlign = 'left';
+        ctx.fillText('Soil map:  blue = water   green = nutrients', G.x + 14, SOIL_BOT - 12);
+    }
+
+    // Plants: dead first, then tallest at the back
+    const order = [...S.plants].sort((a, b) => (b.dead - a.dead) || (b.g.maxHeight * b.growth - a.g.maxHeight * a.growth));
+    for (const p of order) p.bbox = drawPlant(ctx, p, t, SOIL_TOP, p.id);
+
+    // Seeds
+    for (const s of S.seeds) {
+        ctx.fillStyle = `hsl(${s.hue}, 35%, 30%)`;
+        ctx.globalAlpha = s.landed ? 0.6 + 0.4 * Math.sin(t * 3 + s.x) : 1;
+        ctx.beginPath(); ctx.ellipse(s.x, s.y, 2.6, 1.7, s.landed ? 0 : Math.atan2(s.vy, s.vx), 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Particles
+    for (const pt of particles) {
+        ctx.globalAlpha = clamp(pt.life, 0, 1);
+        if (pt.type === 'leaf') {
+            ctx.save(); ctx.translate(pt.x, pt.y); ctx.rotate(pt.rot);
+            ctx.fillStyle = pt.color;
+            ctx.beginPath(); ctx.ellipse(0, 0, 3.2, 1.6, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+        } else {
+            ctx.fillStyle = pt.color;
+            ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2); ctx.fill();
+        }
+    }
+    ctx.globalAlpha = 1;
+
+    // Condensation on the glass when the air is humid
+    const dropA = clamp((hum - 0.3) * 1.1, 0, 0.55);
+    if (dropA > 0) {
+        ctx.fillStyle = `rgba(255, 255, 255, ${dropA})`;
+        for (const d of droplets) { ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2); ctx.fill(); }
+    }
+    ctx.restore();
+
+    // Glass rim and reflections
+    roundRect(ctx, G.x, G.y, G.w, G.h, G.r);
+    ctx.strokeStyle = 'rgba(190, 225, 240, 0.65)';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.10)';
+    ctx.fillRect(G.x + 22, G.y + 26, 12, G.h - 140);
+    ctx.fillRect(G.x + 42, G.y + 26, 4, G.h - 190);
+    ctx.fillRect(G.x + G.w - 40, G.y + 60, 6, G.h - 220);
+
+    // Night
+    ctx.fillStyle = `rgba(8, 14, 40, ${(1 - day) * 0.5})`;
+    ctx.fillRect(0, 0, W, H);
+
+    // Lamp fixture (glows over the night overlay)
+    const lx = S.lamp.x;
+    ctx.fillStyle = '#3B4650';
+    ctx.fillRect(lx - 1.5, 0, 3, G.y + 16);
+    ctx.fillStyle = '#56636E';
+    ctx.beginPath();
+    ctx.moveTo(lx - 16, G.y + 12); ctx.lineTo(lx + 16, G.y + 12); ctx.lineTo(lx + 34, G.y + 38); ctx.lineTo(lx - 34, G.y + 38);
+    ctx.fill();
+    if (S.lamp.on && S.lamp.bright > 0) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const glow = ctx.createRadialGradient(lx, G.y + 40, 2, lx, G.y + 40, 70);
+        glow.addColorStop(0, `rgba(255, 240, 180, ${0.9 * S.lamp.bright})`);
+        glow.addColorStop(1, 'rgba(255, 240, 180, 0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(lx - 70, G.y - 30, 140, 140);
+        ctx.restore();
+    }
+    ctx.fillStyle = S.lamp.on ? '#FFF4C2' : '#7C8790';
+    ctx.beginPath(); ctx.arc(lx, G.y + 38, 9, 0, Math.PI); ctx.fill();
+
+    // Selection tag
+    if (selected && selected.bbox) {
+        const p = selected;
+        ctx.strokeStyle = 'rgba(110, 231, 168, 0.9)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.beginPath(); ctx.ellipse(p.x, SOIL_TOP + 2, 18, 5, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.setLineDash([]);
+        const y = Math.max(G.y + 72, p.bbox.top - 12);
+        const label = `${p.g.species} · gen ${p.gen}`;
+        ctx.font = '700 13px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        const w = ctx.measureText(label).width + 18;
+        roundRect(ctx, p.x - w / 2, y - 28, w, 22, 8);
+        ctx.fillStyle = 'rgba(14, 21, 18, 0.88)';
+        ctx.fill();
+        ctx.fillStyle = '#6EE7A8';
+        ctx.fillText(label, p.x, y - 12.5);
+    }
+
+    // Tool cursor
+    if (pointer.inside && !lampDrag) {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.lineWidth = 1.5;
+        if (tool === 'spray' || tool === 'fertilize') {
+            ctx.beginPath(); ctx.arc(pointer.x, pointer.y, 22, 0, Math.PI * 2); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(pointer.x, SOIL_TOP - 4); ctx.lineTo(pointer.x, SOIL_TOP + 8); ctx.stroke();
+        } else if (tool === 'plant' && S.invSel != null) {
+            const ok = freeSpot(pointer.x);
+            ctx.strokeStyle = ok ? '#6EE7A8' : '#FF7A6B';
+            ctx.beginPath(); ctx.moveTo(pointer.x, SOIL_TOP - 30); ctx.lineTo(pointer.x, SOIL_TOP); ctx.stroke();
+            ctx.beginPath(); ctx.arc(pointer.x, SOIL_TOP, 6, 0, Math.PI * 2); ctx.stroke();
+        }
+    }
+}
+
+function updateParticles(dtR, running) {
+    for (const s of S.seeds) {
+        if (s.landed || !running) continue;
+        s.vy += s.grav * dtR; s.x += s.vx * dtR; s.y += s.vy * dtR;
+        if (s.y >= SOIL_TOP - 2) {
+            s.y = SOIL_TOP - 2; s.landed = true;
+            for (let i = 0; i < 5; i++) particles.push({ type: 'dust', x: s.x, y: SOIL_TOP - 1, vx: rand(-25, 25), vy: rand(-30, -10), r: 1.3, life: 0.6, color: 'rgba(120, 90, 60, 0.8)', g: 80 });
+        }
+        if (s.x < PX_MIN) s.vx = Math.abs(s.vx);
+        if (s.x > PX_MAX) s.vx = -Math.abs(s.vx);
+    }
+    for (const pt of particles) {
+        if (pt.type === 'leaf') {
+            pt.vx += Math.sin(pt.y * 0.05) * 8 * dtR;
+            pt.rot += pt.vr * dtR;
+            if (pt.y >= SOIL_TOP - 1) { pt.vy = 0; pt.vx = 0; pt.y = SOIL_TOP - 1; pt.life -= dtR * 0.6; }
+        } else {
+            pt.vy += (pt.g || 0) * dtR;
+            pt.life -= dtR * (pt.type === 'mist' ? 0.9 : 1.4);
+            if (pt.y > SOIL_TOP) pt.life = 0;
+        }
+        pt.x += pt.vx * dtR; pt.y += pt.vy * dtR;
+    }
+    for (let i = particles.length - 1; i >= 0; i--) if (particles[i].life <= 0) particles.splice(i, 1);
+}
+
+// ===================== UI =====================
+const $ = id => document.getElementById(id);
+let toastTimer;
+function toast(msg) {
+    $('toast').textContent = msg;
+    $('toast').classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => $('toast').classList.remove('show'), 1800);
+}
+function dayLabel() { return `Day ${Math.floor(S.time) + 1}`; }
+function log(html) {
+    S.log.unshift({ d: dayLabel(), html });
+    S.log.length = Math.min(S.log.length, 40);
+    renderLog();
+}
+function renderLog() {
+    $('log').innerHTML = S.log.map(e => `<li><span class="d">${e.d}</span>${e.html}</li>`).join('');
+}
+
+function speciesColor(name) {
+    const sp = S.species[name];
+    return `hsl(${sp ? sp.hue : 120}, 60%, 55%)`;
+}
+
+function renderCard() {
+    const p = selected;
+    if (!p) {
+        $('card').innerHTML = '<p class="empty">Pick the 🔍 tool and tap any plant to see its live stats and genetic code.</p>';
+        return;
+    }
+    const g = p.g;
+    const dna = dnaString(g).replace(/(.{4})/g, '$1 ').trim().replace(/[ACGT]/g, b => `<span class="${b}">${b}</span>`);
+    const genes = GENES.map(gene => {
+        const n = clamp(norm(gene, g[gene.k]), 0, 1);
+        const col = WRAP.has(gene.k) || gene.k === 'stemHue' ? `hsl(${g[gene.k]}, 65%, 55%)` : 'var(--accent)';
+        return `<div class="gene"><span class="lbl">${gene.label}</span><div class="meter"><i style="width:${n * 100}%;background:${col}"></i></div><span class="num">${fmtGene(gene.k, g[gene.k])}</span></div>`;
+    }).join('');
+    const sp = S.species[g.species];
+    $('card').innerHTML = `
+        <div class="card-head">
+            <span class="dot" style="background:${speciesColor(g.species)}"></span>
+            <div style="flex:1;min-width:0"><div class="name">${g.species}</div>
+            <div class="facts" style="margin:0">Generation ${p.gen}${sp && sp.parent ? ` · descended from ${sp.parent}` : ''}</div></div>
+            <span class="badge" id="cStatus"></span>
+        </div>
+        <div id="cLive"></div>
+        <div class="actions">
+            <button class="solid" data-act="seed">🌰 Collect seed</button>
+            <button class="solid" data-act="cutting">✂️ Take cutting</button>
+        </div>
+        <h2 style="margin-top:12px">Genetic code</h2>
+        <div class="dna">${dna}</div>
+        <details open><summary>Decoded genes</summary><div class="genes">${genes}</div></details>`;
+    updateCard();
+}
+
+function bar(label, v, color, text) {
+    return `<div class="row"><span class="lbl">${label}</span><div class="meter"><i style="width:${clamp(v, 0, 1) * 100}%;background:${color}"></i></div><span class="num">${text}</span></div>`;
+}
+
+function updateCard() {
+    const p = selected;
+    if (!p || !$('cLive')) return;
+    const st = p.st || { lm: localAvg(S.m, p.x), ln: localAvg(S.n, p.x), mW: 1, mL: 1, nF: 1, fit: 1 };
+    let status = 'Thriving', cls = 'good';
+    if (p.dead) { status = p.deadTime > 0.3 ? 'Decomposing' : 'Dead'; cls = 'bad'; }
+    else if (p.health < 0.35) { status = 'Wilting'; cls = 'bad'; }
+    else if (st.fit < 0.45) { status = 'Stressed'; cls = 'bad'; }
+    else if (p.growth < 0.25) status = 'Seedling';
+    else if (p.growth < 0.7) status = 'Growing';
+    else status = 'Mature';
+    $('cStatus').textContent = status;
+    $('cStatus').className = `badge ${cls}`;
+    const g = p.g;
+    $('cLive').innerHTML = p.dead
+        ? `<p class="facts">This plant is breaking down and returning <b>${pct(p.store)}</b> nutrients to the soil.</p>`
+        : bar('Health', p.health, p.health < 0.35 ? 'var(--danger)' : 'var(--accent)', pct(p.health))
+        + bar('Height', p.growth, 'var(--accent)', `${Math.round(p.growth * g.maxHeight)}px`)
+        + bar('Hydration', st.mW, 'var(--water)', pct(st.mW))
+        + bar('Light fit', st.mL, 'var(--light)', pct(st.mL))
+        + bar('Nutrition', st.nF, 'var(--nutr)', pct(st.nF))
+        + `<div class="facts">
+            Soil here: <b>${pct(st.lm)}</b> water (wants ${pct(g.waterNeed)}) · <b>${pct(st.ln)}</b> nutrients<br>
+            Light here: <b>${pct(p.lightAvg)}</b> (wants ${pct(g.lightPref)})<br>
+            Age <b>${p.age.toFixed(1)}</b> / ${g.lifespan.toFixed(1)} days · Seeds dropped <b>${p.offspring}</b>
+           </div>`;
+    const seedBtn = $('card').querySelector('[data-act=seed]'), cutBtn = $('card').querySelector('[data-act=cutting]');
+    if (seedBtn) seedBtn.disabled = p.dead || p.growth < 0.6;
+    if (cutBtn) cutBtn.disabled = p.dead || p.health < 0.3 || p.growth < 0.3;
+}
+
+$('card').addEventListener('click', e => {
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    const p = selected;
+    if (!act || !p || p.dead) return;
+    if (S.inventory.length >= INV_MAX) { toast('Your seed vault is full. Remove something first.'); return; }
+    if (act === 'seed') {
+        S.inventory.push({ id: S.nextId++, kind: 'seed', g: mutate(p.g), gen: p.gen + 1 });
+        toast(`🌰 Collected a ${p.g.species} seed (it may carry mutations)`);
+    } else {
+        S.inventory.push({ id: S.nextId++, kind: 'cutting', g: { ...p.g }, gen: p.gen });
+        p.health = Math.max(0.05, p.health - 0.12);
+        p.growth = Math.max(0.1, p.growth - 0.05);
+        toast(`✂️ Took a cutting: an exact clone of this ${p.g.species}`);
+    }
+    S.invSel = S.inventory.length - 1;
+    renderVault();
+    updateCard();
+});
+
+function renderVault() {
+    const v = $('vault');
+    v.innerHTML = '';
+    for (let i = 0; i < INV_MAX; i++) {
+        const item = S.inventory[i];
+        const slot = document.createElement('div');
+        if (!item) { slot.className = 'slot emptyslot'; v.append(slot); continue; }
+        slot.className = 'slot' + (S.invSel === i ? ' sel' : '');
+        slot.title = `${item.g.species} ${item.kind} (gen ${item.gen}). Click, then use Plant to grow it.`;
+        const cv = document.createElement('canvas');
+        cv.width = cv.height = 96;
+        drawThumb(cv, item);
+        slot.append(cv);
+        slot.insertAdjacentHTML('beforeend', `<span class="kind">${item.kind === 'seed' ? '🌰' : '✂️'}</span><span class="x" data-del="${i}" title="Discard">×</span><span class="nm">${item.g.species}</span>`);
+        slot.onclick = e => {
+            if (e.target.dataset.del != null) {
+                S.inventory.splice(i, 1);
+                trees.delete('inv' + item.id);
+                S.invSel = null;
+            } else {
+                S.invSel = i;
+                setTool('plant');
+            }
+            renderVault();
+        };
+        v.append(slot);
+    }
+    $('vaultCount').textContent = `(${S.inventory.length}/${INV_MAX})`;
+}
+
+function drawThumb(cv, item) {
+    const c = cv.getContext('2d');
+    c.fillStyle = '#0B1210';
+    c.fillRect(0, 0, 96, 96);
+    c.fillStyle = '#3A2A1C';
+    c.fillRect(0, 84, 96, 12);
+    const fake = { g: item.g, x: 0, growth: 1, health: 1, dead: false };
+    const sc = 70 / (item.g.maxHeight + item.g.leafSize * 2);
+    c.save();
+    c.translate(48, 84);
+    c.scale(sc, sc);
+    drawPlant(c, fake, 0, 0, 'inv' + item.id);
+    c.restore();
+}
+
+function setTool(t) {
+    tool = t;
+    for (const b of $('tools').children) b.classList.toggle('active', b.dataset.tool === t);
+    canvas.style.cursor = t === 'inspect' ? 'pointer' : 'crosshair';
+    if (t === 'plant' && S.invSel == null) toast('Pick a seed or cutting from the vault, then tap the soil.');
+}
+
+function syncControls() {
+    $('lampToggle').textContent = S.lamp.on ? '💡 Lamp on' : '💡 Lamp off';
+    $('lampToggle').classList.toggle('active', S.lamp.on);
+    $('lampBright').value = Math.round(S.lamp.bright * 100);
+    $('lampVal').textContent = pct(S.lamp.bright);
+    $('mapToggle').classList.toggle('active', S.showMap);
+    for (const b of $('speed').children) b.classList.toggle('active', Number(b.dataset.speed) === S.speed);
+}
+
+function updateHud() {
+    const avg = arr => arr.reduce((s, v) => s + v, 0) / arr.length;
+    let light = 0;
+    for (let i = 0; i < N; i++) light += lightAtX(cellX(i));
+    light /= N;
+    const m = avg(S.m), n = avg(S.n), hum = clamp(S.air / 0.3, 0, 1);
+    const dv = diversity(), alive = alivePlants().length;
+    const set = (id, text, meter, v) => { $(id).textContent = text; $(meter).style.width = `${clamp(v, 0, 1) * 100}%`; };
+    set('hMoist', pct(m), 'mMoist', m);
+    set('hLight', pct(light), 'mLight', light);
+    set('hNutr', pct(n), 'mNutr', n);
+    set('hHum', pct(hum), 'mHum', hum);
+    set('hDiv', `${dv.species} spp · H ${dv.h.toFixed(2)}`, 'mDiv', dv.h / Math.log(10));
+    set('hPop', `${alive} · gen ${S.maxGen}`, 'mPop', alive / MAX_ALIVE);
+    const hour = ((S.time % 1) * 24 + 6) % 24;
+    const hh = String(Math.floor(hour)).padStart(2, '0'), mm = String(Math.floor((hour % 1) * 60)).padStart(2, '0');
+    $('clock').textContent = `${daylight(S.time) > 0.05 ? '☀️' : '🌙'} ${dayLabel()} · ${hh}:${mm}`;
+}
+
+const chart = $('chart'), cctx = chart.getContext('2d');
+function drawChart() {
+    const w = chart.width, h = chart.height, pad = 10;
+    cctx.clearRect(0, 0, w, h);
+    cctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+    cctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) { const y = pad + (h - 2 * pad) * i / 4; cctx.beginPath(); cctx.moveTo(0, y); cctx.lineTo(w, y); cctx.stroke(); }
+    const hist = S.history;
+    if (hist.length < 2) {
+        cctx.fillStyle = '#8FA59A';
+        cctx.font = '22px Inter, sans-serif';
+        cctx.fillText('Collecting data…', 20, h / 2);
+        return;
+    }
+    const line = (key, color, width) => {
+        cctx.strokeStyle = color;
+        cctx.lineWidth = width;
+        cctx.lineJoin = 'round';
+        cctx.beginPath();
+        let started = false;
+        hist.forEach((s, i) => {
+            if (s[key] == null) { started = false; return; }
+            const x = i / (300 - 1) * w, y = h - pad - s[key] * (h - 2 * pad);
+            started ? cctx.lineTo(x, y) : cctx.moveTo(x, y);
+            started = true;
+        });
+        cctx.stroke();
+    };
+    line('pop', '#8FA59A', 2);
+    line('div', '#FF8FB1', 3);
+    line('water', '#5AB4FF', 3);
+    line('light', '#FFD65A', 3);
+}
+
+// ===================== Input =====================
+let lampDrag = false;
+function toCanvas(e) {
+    const r = canvas.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height };
+}
+canvas.addEventListener('pointerdown', e => {
+    const pt = toCanvas(e);
+    Object.assign(pointer, pt, { inside: true });
+    canvas.setPointerCapture(e.pointerId);
+    if (Math.abs(pt.x - S.lamp.x) < 50 && pt.y < G.y + 70) { lampDrag = true; return; }
+    if (tool === 'inspect') {
+        let best = null, bestD = Infinity;
+        for (const p of S.plants) {
+            const b = p.bbox;
+            if (!b || pt.x < b.minX - 10 || pt.x > b.maxX + 10 || pt.y < b.top - 12 || pt.y > SOIL_TOP + 20) continue;
+            const d = Math.abs(pt.x - p.x) + (p.dead ? 60 : 0);
+            if (d < bestD) { best = p; bestD = d; }
+        }
+        selected = best;
+        renderCard();
+    } else if (tool === 'plant') {
+        const item = S.inventory[S.invSel];
+        if (!item) { toast('Pick a seed or cutting from the vault first.'); return; }
+        if (alivePlants().length >= MAX_ALIVE) { toast('The terrarium is full.'); return; }
+        if (!freeSpot(pt.x)) { toast('Too close to another plant. Try another spot.'); return; }
+        const p = item.kind === 'cutting' ? makePlant(speciate(item.g), pt.x, item.gen, 0.15, 0.7) : makePlant(speciate(item.g), pt.x, item.gen);
+        S.plants.push(p);
+        S.inventory.splice(S.invSel, 1);
+        trees.delete('inv' + item.id);
+        S.invSel = S.inventory.length ? Math.min(S.invSel, S.inventory.length - 1) : null;
+        selected = p;
+        renderVault();
+        renderCard();
+        log(`🌱 You planted a ${item.g.species} ${item.kind}`);
+    } else {
+        pointer.down = true;
+    }
+});
+canvas.addEventListener('pointermove', e => {
+    Object.assign(pointer, toCanvas(e), { inside: true });
+    if (lampDrag) S.lamp.x = clamp(pointer.x, G.x + 50, G.x + G.w - 50);
+});
+const release = () => { pointer.down = false; lampDrag = false; };
+canvas.addEventListener('pointerup', release);
+canvas.addEventListener('pointercancel', release);
+canvas.addEventListener('pointerleave', () => { pointer.inside = false; });
+
+function applyTools(dtR) {
+    if (!pointer.down) return;
+    const x = clamp(pointer.x, PX_MIN, PX_MAX);
+    if (tool === 'spray') {
+        spread(S.m, x, 2.2 * dtR, 2.5);
+        S.air += 0.03 * dtR;
+        for (let i = 0; i < 4; i++) particles.push({ type: 'mist', x: pointer.x + rand(-6, 6), y: pointer.y, vx: rand(-60, 60), vy: rand(80, 220), r: rand(1.2, 2.6), life: 1, color: 'rgba(150, 205, 255, 0.85)', g: 300 });
+    } else if (tool === 'fertilize') {
+        spread(S.n, x, 0.8 * dtR, 2);
+        if (Math.random() < 0.6) particles.push({ type: 'grain', x: pointer.x + rand(-10, 10), y: pointer.y, vx: rand(-15, 15), vy: rand(40, 90), r: rand(1.5, 2.6), life: 2, color: pick(['#B6F27A', '#E8F5A0', '#7BD389']), g: 400 });
+    }
+}
+
+for (const b of $('tools').children) b.onclick = () => setTool(b.dataset.tool);
+for (const b of $('speed').children) b.onclick = () => { S.speed = Number(b.dataset.speed); syncControls(); };
+$('lampToggle').onclick = () => { S.lamp.on = !S.lamp.on; syncControls(); };
+$('lampBright').oninput = e => { S.lamp.bright = Number(e.target.value) / 100; syncControls(); };
+$('mapToggle').onclick = () => { S.showMap = !S.showMap; syncControls(); };
+$('wild').onclick = () => {
+    if (S.seeds.length >= MAX_SEEDS) { toast('Too many seeds waiting already.'); return; }
+    const x = rand(PX_MIN, PX_MAX);
+    S.seeds.push({ x, y: G.y + 50, vx: rand(-20, 20), vy: 0, grav: 300, g: randomGenome(), gen: 1, landed: false, wait: 0.15, hue: 30 });
+    toast('🎲 A wild seed drifts in…');
+};
+$('reset').onclick = () => {
+    if (!confirm('Start a brand-new terrarium? Everything here will be lost.')) return;
+    newWorld();
+    afterLoad();
+};
+window.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT') return;
+    const tools = { 1: 'inspect', 2: 'spray', 3: 'fertilize', 4: 'plant' };
+    if (tools[e.key]) setTool(tools[e.key]);
+    if (e.code === 'Space') { e.preventDefault(); S.speed = S.speed ? 0 : 1; syncControls(); }
+});
+
+// ===================== Save / load =====================
+function newWorld() {
+    S = {
+        time: 0.05, m: new Array(N).fill(0.5), n: new Array(N).fill(0.55), air: 0.12, sunL: 0, cloud: 1, cloudSeed: Math.random() * 100,
+        lamp: { on: true, x: W / 2, bright: 0.8 }, speed: 1, showMap: false,
+        plants: [], seeds: [], inventory: [], invSel: null, species: {}, history: [], lastSample: 0, log: [], maxGen: 1, nextId: 1
+    };
+    trees.clear();
+    particles.length = 0;
+    selected = null;
+    for (let i = 0; i < 6; i++) {
+        const x = lerp(PX_MIN + 40, PX_MAX - 40, i / 5) + rand(-20, 20);
+        S.plants.push(makePlant(speciate(randomGenome()), x, 1, rand(0.25, 0.45)));
+    }
+    log('🌿 A new terrarium has been planted with 6 wild species');
+}
+function save() {
+    try {
+        const plants = S.plants.map(({ bbox, st, ...rest }) => rest);
+        localStorage.setItem(SAVE_KEY, JSON.stringify({ ...S, plants }));
+    } catch (e) { /* storage unavailable: the simulation still runs */ }
+}
+function load() {
+    try {
+        const d = JSON.parse(localStorage.getItem(SAVE_KEY));
+        if (!d || !Array.isArray(d.plants) || !Array.isArray(d.m) || d.m.length !== N) return false;
+        S = d;
+        return true;
+    } catch (e) { return false; }
+}
+function afterLoad() {
+    syncControls();
+    setTool('inspect');
+    renderLog();
+    renderVault();
+    renderCard();
+}
+
+// ===================== Main loop =====================
+if (!load()) newWorld();
+afterLoad();
+
+let last = performance.now(), uiT = 0, chartT = 0, saveT = 0;
+function frame(now) {
+    const dtR = Math.min(0.1, (now - last) / 1000);
+    last = now;
+    applyTools(dtR);
+    let dt = dtR * S.speed / DAY_SECONDS;
+    while (dt > 0) { const step = Math.min(dt, 0.02); simulate(step); dt -= step; }
+    updateParticles(dtR, S.speed > 0);
+    render(now / 1000);
+    uiT += dtR; chartT += dtR; saveT += dtR;
+    if (uiT > 0.25) { uiT = 0; updateHud(); updateCard(); }
+    if (chartT > 1) { chartT = 0; drawChart(); }
+    if (saveT > 5) { saveT = 0; save(); }
+    requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+})();
+</script>
+</body>
+</html>

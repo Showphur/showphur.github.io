@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tiny Terrarium! 🌿</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #EAF6EE;
+            --card: #FFFFFF;
+            --ink: #2D3A33;
+            --muted: #6B7C72;
+            --accent: #2E8B57;
+            --btn: #4A90E2;
+            --btn-dark: #1E5FAF;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 16px;
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--ink);
+        }
+        .wrap { max-width: 1000px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+        header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+        h1 { margin: 0; color: var(--accent); font-size: 1.8em; }
+        h2 { margin: 0 0 8px; font-size: 1.1em; }
+        a.home { color: var(--btn-dark); font-weight: 700; text-decoration: none; }
+        .card { background: var(--card); border-radius: 15px; box-shadow: 0 6px 18px rgba(0,0,0,0.1); padding: 14px; }
+        canvas { width: 100%; height: auto; display: block; border-radius: 10px; touch-action: none; cursor: pointer; }
+        .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+        button {
+            font: inherit; font-weight: 700; font-size: 1em;
+            border: 2px solid var(--btn-dark); background: var(--btn); color: #FFFFFF;
+            border-radius: 10px; padding: 10px 14px; cursor: pointer;
+        }
+        button:hover { background: var(--btn-dark); }
+        button.off { background: #FFFFFF; color: var(--btn-dark); }
+        button.danger { background: #FFFFFF; color: #B03A2E; border-color: #B03A2E; }
+        .speed { display: flex; gap: 4px; }
+        .speed button { padding: 8px 10px; }
+        .speed button.active { background: var(--btn-dark); color: #FFFFFF; }
+        .speed button:not(.active) { background: #FFFFFF; color: var(--btn-dark); }
+        label.slider { display: flex; align-items: center; gap: 6px; font-weight: 700; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+        @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } h1 { font-size: 1.4em; } }
+        .stat { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+        .stat .lbl { width: 135px; flex-shrink: 0; }
+        .stat .val { width: 52px; text-align: right; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+        .bar { flex: 1; height: 12px; background: #E3EBE6; border-radius: 6px; overflow: hidden; }
+        .bar > i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 6px; transition: width 0.3s; }
+        .pref { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid #EEF2EF; }
+        .ok { color: #2E8B57; font-weight: 700; }
+        .bad { color: #C0392B; font-weight: 700; }
+        .muted { color: var(--muted); }
+        #log { list-style: none; padding: 0; margin: 0; font-size: 0.92em; }
+        #log li { padding: 4px 0; border-bottom: 1px solid #EEF2EF; }
+        #log .day { color: var(--muted); }
+        .hint { color: var(--muted); font-size: 0.9em; margin: 10px 0 0; line-height: 1.4; }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <header>
+        <h1>Tiny Terrarium! 🌿</h1>
+        <a class="home" href="../index.html">⬅ Back to games</a>
+    </header>
+
+    <div class="card">
+        <canvas id="tank" width="900" height="560" aria-label="Terrarium"></canvas>
+        <div class="controls">
+            <button id="water">💧 Water</button>
+            <button id="feed">🧪 Plant food</button>
+            <button id="seed">🌱 Mystery seed</button>
+            <button id="lamp">💡 Lamp: on</button>
+            <button id="lid">🫙 Lid: open</button>
+            <label class="slider">🔥 Heater <input id="heater" type="range" min="0" max="10" step="1"> <span id="heaterVal"></span></label>
+            <div class="speed" id="speed">
+                <button data-speed="0">⏸</button>
+                <button data-speed="1">1×</button>
+                <button data-speed="4">4×</button>
+                <button data-speed="16">16×</button>
+            </div>
+        </div>
+        <p class="hint">Drag the 💡 lamp to move it. Tap a plant to see how it feels. Grown-up healthy plants drop seeds, and every baby is a little different from its parent, so over many generations your plants <b>adapt</b> to their spot in the tank!</p>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h2>🫙 Terrarium</h2>
+            <div class="stat"><span class="lbl" id="clock">☀️ Day 1</span><span class="muted" id="counts"></span></div>
+            <div class="stat"><span class="lbl">💧 Soil water</span><div class="bar"><i id="moistBar"></i></div><span class="val" id="moistVal"></span></div>
+            <div class="stat"><span class="lbl">🧪 Plant food</span><div class="bar"><i id="nutrBar"></i></div><span class="val" id="nutrVal"></span></div>
+            <div class="stat"><span class="lbl">🌡️ Temperature</span><span id="tempVal"></span></div>
+            <div class="stat"><span class="lbl">🍄 Mould</span><span id="mouldVal"></span></div>
+        </div>
+        <div class="card">
+            <h2 id="plantTitle">🔍 Plant check-up</h2>
+            <div id="plantInfo" class="muted">Tap a plant to see how it's feeling.</div>
+        </div>
+        <div class="card">
+            <h2>📔 Journal</h2>
+            <ul id="log"></ul>
+            <div class="controls"><button class="danger" id="reset">🔄 New terrarium</button></div>
+        </div>
+    </div>
+</div>
+
+<script>
+(() => {
+    // ---------- Constants ----------
+    const W = 900, H = 560;
+    const GLASS = { x: 40, y: 34, w: 820, h: 486 };
+    const SOIL_TOP = 455, SOIL_BOTTOM = GLASS.y + GLASS.h;
+    const PX_MIN = 75, PX_MAX = 825;
+    const DAY_SECONDS = 60;       // one game day = 60 real seconds at 1x
+    const MAX_PLANTS = 18;
+    const PLANT_SCALE = 1.7;      // how big plants are drawn in the tank
+    const SAVE_KEY = 'tiny-terrarium-v1';
+
+    // Each gene: [min, max, mutation size]
+    const GENES = {
+        stemHue: [70, 130, 5], leafHue: [0, 360, 10], leafLight: [25, 55, 3], flowerHue: [0, 360, 20],
+        angle: [0.2, 1.0, 0.06], curve: [-0.15, 0.15, 0.03], segLen: [6, 16, 1], segs: [3, 10, 0.6],
+        orders: [1, 3, 0.3], branchProb: [0.2, 0.85, 0.05], leafDensity: [0.3, 1, 0.06], leafSize: [3, 11, 0.6],
+        leafRatio: [0.2, 1, 0.06], thick: [1.2, 4, 0.2], flowers: [0, 1, 0.08],
+        idealLight: [0.05, 0.95, 0.04], idealMoist: [0.15, 0.9, 0.04], idealTemp: [12, 32, 1],
+        tol: [0.12, 0.32, 0.015], tolT: [3, 8, 0.3],
+        rate: [0.6, 1.6, 0.06], lifespan: [8, 20, 0.8], seedRate: [0.2, 1, 0.05]
+    };
+
+    // ---------- Helpers ----------
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const lerp = (a, b, t) => a + (b - a) * t;
+    const rand = (a, b) => a + Math.random() * (b - a);
+    const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+    const gauss = () => Math.sqrt(-2 * Math.log(1 - Math.random())) * Math.cos(2 * Math.PI * Math.random());
+    const aOrAn = word => (/^[AEIOU]/i.test(word) ? 'an ' : 'a ') + word;
+    const match = (v, ideal, tol) => Math.exp(-0.5 * ((v - ideal) / tol) ** 2);
+    function mulberry32(a) {
+        return () => {
+            a |= 0; a = a + 0x6D2B79F5 | 0;
+            let t = Math.imul(a ^ a >>> 15, 1 | a);
+            t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+            return ((t ^ t >>> 14) >>> 0) / 4294967296;
+        };
+    }
+
+    // ---------- Genetics ----------
+    const NAME_A = ['Fern', 'Moss', 'Ivy', 'Bel', 'Clo', 'Pip', 'Tan', 'Wil', 'Ros', 'Myr', 'Sol', 'Lum', 'Bry', 'Fen', 'Gla', 'Thy', 'Dew', 'Sun'];
+    const NAME_B = ['wick', 'bell', 'leaf', 'sprig', 'wort', 'frond', 'bloom', 'vine', 'ling', 'cap', 'tuft', 'drop', 'curl'];
+
+    function randomGenome() {
+        const g = {};
+        for (const [k, [min, max]] of Object.entries(GENES)) g[k] = rand(min, max);
+        // Founders are mostly green and suited to roughly room conditions;
+        // their descendants can drift anywhere in the gene ranges.
+        g.leafHue = Math.random() < 0.8 ? rand(75, 150) : rand(260, 350) % 360;
+        g.idealTemp = rand(16, 26);
+        g.idealMoist = rand(0.3, 0.75);
+        g.name = pick(NAME_A) + pick(NAME_B);
+        g.shapeSeed = Math.floor(Math.random() * 1e9);
+        return g;
+    }
+
+    function mutate(parent) {
+        const g = { ...parent };
+        for (const [k, [min, max, sd]] of Object.entries(GENES)) {
+            g[k] += gauss() * sd;
+            g[k] = (k === 'leafHue' || k === 'flowerHue') ? (g[k] + 360) % 360 : clamp(g[k], min, max);
+        }
+        g.shapeSeed = Math.floor(Math.random() * 1e9);
+        return g;
+    }
+
+    // ---------- Procedural plant shape ----------
+    const trees = new Map();
+    function buildTree(g) {
+        const rng = mulberry32(g.shapeSeed);
+        const maxSegs = Math.round(g.segs), maxOrder = Math.round(g.orders);
+        const nodes = [];
+        const queue = [{ p: -1, a: (rng() - 0.5) * 0.15, len: g.segLen, order: 0, segs: 0, dir: rng() < 0.5 ? -1 : 1 }];
+        while (queue.length && nodes.length < 200) {
+            const it = queue.shift();
+            const parent = it.p >= 0 ? nodes[it.p] : null;
+            const n = { p: it.p, a: it.a, len: it.len, order: it.order, dist: (parent ? parent.dist : 0) + it.len, leaves: [], kids: 0, sway: rng() * 6.28 };
+            const i = nodes.push(n) - 1;
+            if (parent) parent.kids++;
+            if ((it.segs > 0 || it.order > 0) && rng() < g.leafDensity) {
+                const side = rng() < 0.5 ? -1 : 1;
+                n.leaves.push({ side, spread: 0.7 + rng() * 0.6, size: 0.7 + rng() * 0.5 });
+                if (rng() < g.leafDensity * 0.6) n.leaves.push({ side: -side, spread: 0.7 + rng() * 0.6, size: 0.7 + rng() * 0.5 });
+            }
+            if (it.segs < maxSegs - it.order * 2) {
+                // Keep growing this stem, curving gently (side branches bend back upward)
+                const bend = g.curve * it.dir + (it.order > 0 ? -it.dir * 0.1 : 0);
+                queue.push({ p: i, a: bend + (rng() - 0.5) * 0.2, len: it.len * 0.94, order: it.order, segs: it.segs + 1, dir: it.dir });
+                if (it.order < maxOrder && it.segs >= 1) {
+                    for (const side of [-1, 1]) {
+                        if (rng() < g.branchProb) {
+                            queue.push({ p: i, a: side * (g.angle + (rng() - 0.5) * 0.2), len: it.len * 0.78, order: it.order + 1, segs: 0, dir: side });
+                        }
+                    }
+                }
+            }
+        }
+        const maxDist = Math.max(...nodes.map(n => n.dist));
+        for (const n of nodes) {
+            n.s = (n.dist - n.len) / maxDist * 0.95;   // growth level when this segment starts
+            n.e = n.dist / maxDist * 0.95 + 0.05;      // growth level when it is fully grown
+        }
+        return { nodes, maxDist };
+    }
+    function getTree(p) {
+        if (!trees.has(p.id)) trees.set(p.id, buildTree(p.g));
+        return trees.get(p.id);
+    }
+
+    // ---------- Game state ----------
+    let S, nextId = 1, selected = null;
+    const particles = [];
+
+    function makePlant(g, x, gen, growth = 0.03) {
+        return { id: nextId++, g, x, gen, growth, health: 0.8, age: 0, dead: false, deadTime: 0, lightAvg: 0.4, acc: { l: 0, m: 0, t: 0 } };
+    }
+
+    function newGame() {
+        S = {
+            time: 0.05, temp: 20, moist: 0.6, nutr: 0.7, mould: 0,
+            heater: 2, lid: false, lamp: true, lampX: 450, speed: 1, maxGen: 1,
+            plants: [], log: []
+        };
+        trees.clear();
+        selected = null;
+        for (const x of [250, 450, 650]) S.plants.push(makePlant(randomGenome(), x + rand(-30, 30), 1, 0.3));
+        log('🌿 A new terrarium! Keep your plants happy.');
+    }
+
+    function save() {
+        try {
+            const plants = S.plants.map(({ bbox, fit, m, ...rest }) => rest);
+            localStorage.setItem(SAVE_KEY, JSON.stringify({ ...S, plants }));
+        } catch (e) { /* storage unavailable: game still works, just won't be saved */ }
+    }
+    function load() {
+        try {
+            const data = JSON.parse(localStorage.getItem(SAVE_KEY));
+            if (!data || !Array.isArray(data.plants)) return false;
+            S = data;
+            nextId = S.plants.reduce((m, p) => Math.max(m, p.id), 0) + 1;
+            return true;
+        } catch (e) { return false; }
+    }
+
+    function log(text) {
+        S.log.unshift({ day: Math.floor(S.time) + 1, text });
+        S.log.length = Math.min(S.log.length, 7);
+        renderLog();
+    }
+
+    // ---------- Environment ----------
+    const sunAt = t => Math.max(0, Math.sin((t % 1) * 2 * Math.PI));  // daytime for first half of each day
+
+    function lightFor(p) {
+        const xf = (p.x - GLASS.x) / GLASS.w, lx = (S.lampX - GLASS.x) / GLASS.w;
+        let light = 0.35 * sunAt(S.time);
+        if (S.lamp) light += 0.8 * Math.exp(-((xf - lx) ** 2) / (2 * 0.2 * 0.2));
+        light = Math.min(1, light);
+        // Taller neighbours cast shade
+        if (p.bbox) {
+            let shade = 0;
+            const width = p.bbox.maxX - p.bbox.minX + 1;
+            for (const q of S.plants) {
+                if (q === p || q.dead || !q.bbox || q.bbox.top >= p.bbox.top - 5) continue;
+                const overlap = Math.min(q.bbox.maxX, p.bbox.maxX) - Math.max(q.bbox.minX, p.bbox.minX);
+                if (overlap > 0) shade += (overlap / width) * 0.3 * q.growth;
+            }
+            light *= 1 - Math.min(0.6, shade);
+        }
+        return light;
+    }
+
+    function idealsOf(p) {
+        return { l: p.g.idealLight + p.acc.l, m: p.g.idealMoist + p.acc.m, t: p.g.idealTemp + p.acc.t };
+    }
+
+    function simulate(dt) {
+        S.time += dt;
+        const sun = sunAt(S.time);
+        const target = 18 + 4 * sun + S.heater + (S.lid ? 3 : 0) + (S.lamp ? 1.5 : 0);
+        S.temp += (target - S.temp) * Math.min(1, dt * 4);
+
+        const alive = S.plants.filter(p => !p.dead);
+        const drink = alive.reduce((s, p) => s + (0.2 + p.growth) * 0.025, 0);
+        const evap = 0.12 * Math.max(0.3, 1 + (S.temp - 20) / 15) * (S.lid ? 0.15 : 1);
+        S.moist = clamp(S.moist - (evap + drink * (S.lid ? 0.4 : 1)) * dt, 0, 1);
+        S.nutr = clamp(S.nutr - alive.length * 0.004 * dt, 0, 1);
+
+        const wasMouldy = S.mould > 0.5;
+        S.mould = (S.lid && S.moist > 0.8) ? Math.min(1, S.mould + dt * 0.6) : Math.max(0, S.mould - dt * 0.8);
+        if (!wasMouldy && S.mould > 0.5) log('🍄 Mould is growing! It\'s too wet with the lid shut.');
+
+        for (const p of [...S.plants]) updatePlant(p, dt);
+
+        S.plants = S.plants.filter(p => !(p.dead && p.deadTime > 3));
+        for (const id of trees.keys()) if (!S.plants.some(p => p.id === id)) trees.delete(id);
+        if (selected && !S.plants.includes(selected)) selected = null;
+    }
+
+    function updatePlant(p, dt) {
+        if (p.dead) {
+            p.deadTime += dt;
+            S.nutr = Math.min(1, S.nutr + 0.06 * dt * (0.3 + p.growth));  // compost!
+            return;
+        }
+        const g = p.g;
+        p.age += dt;
+        p.lightAvg += (lightFor(p) - p.lightAvg) * Math.min(1, dt * 2);
+
+        const ideal = idealsOf(p);
+        const mL = match(p.lightAvg, ideal.l, g.tol);
+        const mM = match(S.moist, ideal.m, g.tol);
+        const mT = match(S.temp, ideal.t, g.tolT);
+        const nF = 0.4 + 0.6 * Math.min(1, S.nutr / 0.35);
+        let fit = Math.cbrt(mL * mM * mT) * nF;
+        if (S.mould > 0.5) fit *= 0.8;
+        p.fit = fit;
+        p.m = { mL, mM, mT, nF };
+
+        if (fit > 0.45) {
+            p.health = Math.min(1, p.health + (fit - 0.45) * 1.5 * dt);
+            if (p.growth < 1) {
+                const dg = g.rate * 0.5 * (fit - 0.35) * dt * (1 - p.growth * 0.6);
+                p.growth = Math.min(1, p.growth + dg);
+                S.nutr = Math.max(0, S.nutr - dg * 0.08);
+            }
+        } else {
+            p.health -= (0.45 - fit) * 1.6 * dt;
+        }
+        if (p.age > g.lifespan) p.health -= 0.35 * dt * (1 + (p.age - g.lifespan) * 0.3);
+
+        // Acclimation: a plant can shift its own comfort zone a little during its life
+        const k = Math.min(1, dt * 0.3);
+        p.acc.l = clamp(p.acc.l + (p.lightAvg - ideal.l) * k, -0.08, 0.08);
+        p.acc.m = clamp(p.acc.m + (S.moist - ideal.m) * k, -0.08, 0.08);
+        p.acc.t = clamp(p.acc.t + (S.temp - ideal.t) * k, -2, 2);
+
+        if (p.growth > 0.75 && p.health > 0.6 && Math.random() < g.seedRate * p.health * dt) dropSeed(p);
+
+        if (p.health <= 0) {
+            p.health = 0;
+            p.dead = true;
+            p.deadTime = 0;
+            log(`🥀 ${aOrAn(g.name).replace(/^a/, "A")} (gen ${p.gen}) died of ${deathCause(p, ideal)}.`);
+        }
+    }
+
+    function deathCause(p, ideal) {
+        if (p.age > p.g.lifespan && p.fit > 0.45) return 'old age';
+        const causes = [
+            { m: p.m.mL, why: p.lightAvg < ideal.l ? 'too little light' : 'too much light' },
+            { m: p.m.mM, why: S.moist < ideal.m ? 'thirst' : 'soggy roots' },
+            { m: p.m.mT, why: S.temp < ideal.t ? 'cold' : 'heat' },
+            { m: p.m.nF, why: 'hunger (no plant food)' }
+        ];
+        if (S.mould > 0.5) causes.push({ m: 0.3, why: 'mould' });
+        return causes.sort((a, b) => a.m - b.m)[0].why;
+    }
+
+    function freeSpot(x) {
+        return x >= PX_MIN && x <= PX_MAX && !S.plants.some(q => !q.dead && Math.abs(q.x - x) < 32);
+    }
+
+    function dropSeed(parent) {
+        if (S.plants.filter(p => !p.dead).length >= MAX_PLANTS) return;
+        const x = parent.x + rand(-130, 130);
+        if (!freeSpot(x)) return;
+        S.plants.push(makePlant(mutate(parent.g), x, parent.gen + 1));
+        if (parent.gen + 1 > S.maxGen) {
+            S.maxGen = parent.gen + 1;
+            log(`🌱 First generation-${S.maxGen} ${parent.g.name} has sprouted!`);
+        }
+    }
+
+    // ---------- Drawing ----------
+    const canvas = document.getElementById('tank');
+    const ctx = canvas.getContext('2d');
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = W * dpr;
+    canvas.height = H * dpr;
+    ctx.scale(dpr, dpr);
+
+    const sceneRng = mulberry32(42);
+    const pebbles = Array.from({ length: 70 }, () => ({
+        x: GLASS.x + 10 + sceneRng() * (GLASS.w - 20), y: SOIL_TOP + 8 + sceneRng() * (SOIL_BOTTOM - SOIL_TOP - 12),
+        r: 2 + sceneRng() * 5, l: 45 + sceneRng() * 30
+    }));
+    const droplets = Array.from({ length: 60 }, () => ({
+        x: GLASS.x + 8 + sceneRng() * (GLASS.w - 16), y: GLASS.y + 10 + sceneRng() * (SOIL_TOP - GLASS.y - 30), r: 1 + sceneRng() * 2.5
+    }));
+    const mouldSpots = Array.from({ length: 30 }, () => ({ x: PX_MIN + sceneRng() * (PX_MAX - PX_MIN), r: 3 + sceneRng() * 6 }));
+
+    function plantColor(h, s, l, health, dead) {
+        if (dead) return `hsl(32, 28%, ${l * 0.75}%)`;
+        const k = clamp((0.75 - health) / 0.75, 0, 1);  // unhealthy plants turn yellow-brown
+        return `hsl(${lerp(h, 42, k)}, ${lerp(s, 40, k)}%, ${lerp(l, l + 10, k)}%)`;
+    }
+
+    function roundRect(x, y, w, h, r) {
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + w, y, x + w, y + h, r);
+        ctx.arcTo(x + w, y + h, x, y + h, r);
+        ctx.arcTo(x, y + h, x, y, r);
+        ctx.arcTo(x, y, x + w, y, r);
+        ctx.closePath();
+    }
+
+    function drawPlant(p, t) {
+        const { nodes, maxDist } = getTree(p);
+        const g = p.g;
+        const wilt = p.dead ? Math.min(1, 0.5 + p.deadTime) : Math.max(0, 0.55 - p.health) * 1.3;
+        const scale = (0.55 + 0.45 * p.growth) * PLANT_SCALE;
+        ctx.globalAlpha = p.dead ? clamp(1 - (p.deadTime - 1.5) / 1.5, 0, 1) : 1;
+        const stem = plantColor(g.stemHue, 40, 30, p.health, p.dead);
+        const leaf = plantColor(g.leafHue, 55, g.leafLight, p.health, p.dead);
+        const rib = plantColor(g.leafHue, 50, g.leafLight - 12, p.health, p.dead);
+        const pos = new Array(nodes.length);
+        const bbox = { minX: p.x - 4, maxX: p.x + 4, top: SOIL_TOP };
+
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = stem;
+        for (let i = 0; i < nodes.length; i++) {
+            const n = nodes[i];
+            const par = n.p >= 0 ? pos[n.p] : { x: p.x, y: SOIL_TOP + 2, a: 0, f: 1 };
+            if (!par || par.f < 1 || p.growth < n.s) continue;
+            const f = Math.min(1, (p.growth - n.s) / (n.e - n.s));
+            let a = par.a + n.a + (p.dead ? 0 : Math.sin(t * 1.3 + n.sway + p.x * 0.01) * 0.015 * (n.order + 1));
+            a += (a >= 0 ? 1 : -1) * wilt * 0.22;   // droop when unhealthy
+            a = clamp(a, -2.6, 2.6);
+            const L = n.len * scale * f;
+            const x = par.x + Math.sin(a) * L, y = par.y - Math.cos(a) * L;
+            ctx.lineWidth = Math.max(0.6, g.thick * scale * (1 - n.order * 0.25) * (1 - n.dist / maxDist * 0.5));
+            ctx.beginPath();
+            ctx.moveTo(par.x, par.y);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            pos[i] = { x, y, a, f };
+            bbox.minX = Math.min(bbox.minX, x); bbox.maxX = Math.max(bbox.maxX, x); bbox.top = Math.min(bbox.top, y);
+        }
+
+        for (let i = 0; i < nodes.length; i++) {
+            const n = nodes[i], q = pos[i];
+            if (!q || q.f < 1) continue;
+            const lg = clamp((p.growth - n.e) * 6 + 0.25, 0, 1);
+            n.leaves.forEach((lf, j) => {
+                // Dead plants lose their leaves one by one
+                if (p.dead && ((i * 7 + j * 13) % 10) / 10 < p.deadTime / 1.5) return;
+                const size = g.leafSize * lf.size * lg * scale;
+                if (size < 0.5) return;
+                ctx.save();
+                ctx.translate(q.x, q.y);
+                ctx.rotate(q.a + lf.side * (lf.spread + wilt * 0.8));
+                ctx.fillStyle = leaf;
+                ctx.beginPath();
+                ctx.ellipse(0, -size, size * g.leafRatio, size, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = rib;
+                ctx.lineWidth = 0.8;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(0, -size * 1.8);
+                ctx.stroke();
+                ctx.restore();
+                bbox.minX = Math.min(bbox.minX, q.x - size); bbox.maxX = Math.max(bbox.maxX, q.x + size); bbox.top = Math.min(bbox.top, q.y - size * 2);
+            });
+            if (n.kids === 0 && g.flowers > 0.5 && p.growth > 0.85 && p.health > 0.55 && !p.dead) {
+                const r = Math.max(2, g.leafSize * 0.45);
+                ctx.fillStyle = `hsl(${g.flowerHue}, 75%, 68%)`;
+                for (let k = 0; k < 5; k++) {
+                    const ang = k * Math.PI * 2 / 5 + t * 0.2;
+                    ctx.beginPath();
+                    ctx.arc(q.x + Math.cos(ang) * r, q.y + Math.sin(ang) * r, r * 0.7, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.fillStyle = '#FFD84D';
+                ctx.beginPath();
+                ctx.arc(q.x, q.y, r * 0.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        ctx.globalAlpha = 1;
+        p.bbox = bbox;
+    }
+
+    function render(t) {
+        const sun = sunAt(S.time);
+
+        // Room and table
+        const wall = ctx.createLinearGradient(0, 0, 0, H);
+        wall.addColorStop(0, '#DCEFF7');
+        wall.addColorStop(1, '#C9E4D6');
+        ctx.fillStyle = wall;
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = '#A9784D';
+        ctx.fillRect(0, SOIL_BOTTOM - 4, W, H - SOIL_BOTTOM + 4);
+        ctx.fillStyle = '#8B5E3C';
+        ctx.fillRect(0, SOIL_BOTTOM + 14, W, 4);
+
+        // Glass back
+        roundRect(GLASS.x, GLASS.y, GLASS.w, GLASS.h, 18);
+        ctx.fillStyle = 'rgba(225, 245, 255, 0.55)';
+        ctx.fill();
+
+        // Lamp light beam
+        if (S.lamp) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            const beam = ctx.createRadialGradient(S.lampX, GLASS.y + 30, 10, S.lampX, GLASS.y + 30, 380);
+            beam.addColorStop(0, 'rgba(255, 230, 140, 0.35)');
+            beam.addColorStop(1, 'rgba(255, 230, 140, 0)');
+            ctx.fillStyle = beam;
+            ctx.beginPath();
+            ctx.moveTo(S.lampX - 20, GLASS.y + 34);
+            ctx.lineTo(S.lampX + 20, GLASS.y + 34);
+            ctx.lineTo(S.lampX + 260, SOIL_TOP);
+            ctx.lineTo(S.lampX - 260, SOIL_TOP);
+            ctx.closePath();
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // Soil gets darker when wet
+        const soil = ctx.createLinearGradient(0, SOIL_TOP, 0, SOIL_BOTTOM);
+        soil.addColorStop(0, `hsl(28, 38%, ${lerp(45, 22, S.moist)}%)`);
+        soil.addColorStop(1, `hsl(25, 35%, ${lerp(32, 15, S.moist)}%)`);
+        ctx.save();
+        roundRect(GLASS.x, GLASS.y, GLASS.w, GLASS.h, 18);
+        ctx.clip();
+        ctx.fillStyle = soil;
+        ctx.fillRect(GLASS.x, SOIL_TOP, GLASS.w, SOIL_BOTTOM - SOIL_TOP);
+        for (const pb of pebbles) {
+            ctx.fillStyle = `hsl(30, 8%, ${pb.l}%)`;
+            ctx.beginPath();
+            ctx.arc(pb.x, pb.y, pb.r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+
+        // Mould
+        if (S.mould > 0.2) {
+            ctx.fillStyle = 'rgba(245, 245, 235, 0.8)';
+            const count = Math.floor(mouldSpots.length * S.mould);
+            for (let i = 0; i < count; i++) {
+                ctx.beginPath();
+                ctx.arc(mouldSpots[i].x, SOIL_TOP + 3, mouldSpots[i].r, Math.PI, 0);
+                ctx.fill();
+            }
+        }
+
+        for (const p of S.plants) drawPlant(p, t);
+
+        // Water / food particles
+        for (const pt of particles) {
+            ctx.fillStyle = pt.color;
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Condensation when the lid is shut
+        if (S.lid) {
+            ctx.fillStyle = `rgba(255, 255, 255, ${clamp((S.moist - 0.35) * 1.5, 0, 0.7)})`;
+            for (const d of droplets) {
+                ctx.beginPath();
+                ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // Glass front
+        roundRect(GLASS.x, GLASS.y, GLASS.w, GLASS.h, 18);
+        ctx.strokeStyle = 'rgba(120, 160, 180, 0.9)';
+        ctx.lineWidth = 4;
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+        ctx.fillRect(GLASS.x + 18, GLASS.y + 20, 10, GLASS.h - 120);
+        ctx.fillRect(GLASS.x + 36, GLASS.y + 20, 4, GLASS.h - 160);
+
+        // Lid
+        if (S.lid) {
+            roundRect(GLASS.x - 8, GLASS.y - 14, GLASS.w + 16, 18, 8);
+            ctx.fillStyle = 'rgba(160, 200, 220, 0.9)';
+            ctx.fill();
+        }
+
+        // Night
+        ctx.fillStyle = `rgba(20, 30, 70, ${(1 - sun) * 0.45})`;
+        ctx.fillRect(0, 0, W, H);
+
+        // Lamp fixture (drawn after night so it still glows)
+        ctx.fillStyle = '#555F66';
+        ctx.fillRect(S.lampX - 2, 0, 4, GLASS.y + 14);
+        roundRect(S.lampX - 34, GLASS.y + 10, 68, 22, 10);
+        ctx.fillStyle = '#6D7A84';
+        ctx.fill();
+        if (S.lamp) {
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            const glow = ctx.createRadialGradient(S.lampX, GLASS.y + 34, 2, S.lampX, GLASS.y + 34, 60);
+            glow.addColorStop(0, 'rgba(255, 240, 170, 0.9)');
+            glow.addColorStop(1, 'rgba(255, 240, 170, 0)');
+            ctx.fillStyle = glow;
+            ctx.fillRect(S.lampX - 60, GLASS.y - 26, 120, 120);
+            ctx.restore();
+        }
+        ctx.fillStyle = S.lamp ? '#FFF3B0' : '#9AA5AD';
+        ctx.beginPath();
+        ctx.arc(S.lampX, GLASS.y + 34, 9, 0, Math.PI);
+        ctx.fill();
+
+        // Selected plant marker
+        if (selected && selected.bbox) {
+            const y = Math.max(GLASS.y + 70, selected.bbox.top - 14);
+            ctx.font = 'bold 15px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            const label = `${selected.g.name} · gen ${selected.gen}`;
+            const w = ctx.measureText(label).width + 16;
+            roundRect(selected.x - w / 2, y - 30, w, 24, 8);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+            ctx.fill();
+            ctx.fillStyle = '#1E5FAF';
+            ctx.fillText(label, selected.x, y - 13);
+            ctx.beginPath();
+            ctx.moveTo(selected.x - 6, y - 6);
+            ctx.lineTo(selected.x + 6, y - 6);
+            ctx.lineTo(selected.x, y + 2);
+            ctx.fill();
+        }
+    }
+
+    function spawnParticles(color, count) {
+        for (let i = 0; i < count; i++) {
+            particles.push({ x: rand(PX_MIN, PX_MAX), y: rand(GLASS.y + 40, GLASS.y + 140), vy: rand(150, 260), r: rand(2, 3.5), color });
+        }
+    }
+    function updateParticles(dtReal) {
+        for (const pt of particles) pt.y += pt.vy * dtReal;
+        for (let i = particles.length - 1; i >= 0; i--) if (particles[i].y > SOIL_TOP + 4) particles.splice(i, 1);
+    }
+
+    // ---------- UI ----------
+    const $ = id => document.getElementById(id);
+
+    function renderLog() {
+        $('log').innerHTML = '';
+        for (const entry of S.log) {
+            const li = document.createElement('li');
+            li.innerHTML = `<span class="day">Day ${entry.day}:</span> `;
+            li.append(entry.text);
+            $('log').append(li);
+        }
+    }
+
+    function syncControls() {
+        $('lamp').textContent = `💡 Lamp: ${S.lamp ? 'on' : 'off'}`;
+        $('lamp').classList.toggle('off', !S.lamp);
+        $('lid').textContent = `🫙 Lid: ${S.lid ? 'closed' : 'open'}`;
+        $('lid').classList.toggle('off', !S.lid);
+        $('heater').value = S.heater;
+        $('heaterVal').textContent = `+${S.heater}°C`;
+        for (const b of $('speed').children) b.classList.toggle('active', Number(b.dataset.speed) === S.speed);
+    }
+
+    function prefRow(icon, name, liked, m, tooLow) {
+        const status = m > 0.6 ? '<span class="ok">Happy ✅</span>'
+            : tooLow ? '<span class="bad">Wants more ⬆️</span>' : '<span class="bad">Too much ⬇️</span>';
+        return `<div class="pref"><span>${icon} ${name}: likes <b>${liked}</b></span>${status}</div>`;
+    }
+
+    function updatePanels() {
+        const day = Math.floor(S.time) + 1;
+        $('clock').textContent = `${sunAt(S.time) > 0.05 ? '☀️' : '🌙'} Day ${day}`;
+        const alive = S.plants.filter(p => !p.dead);
+        const species = new Set(alive.map(p => p.g.name)).size;
+        $('counts').textContent = `${alive.length} plants · ${species} species · best gen ${S.maxGen}`;
+        $('moistBar').style.width = `${S.moist * 100}%`;
+        $('moistBar').style.background = S.moist < 0.2 ? '#C0392B' : '#4A90E2';
+        $('moistVal').textContent = `${Math.round(S.moist * 100)}%`;
+        $('nutrBar').style.width = `${S.nutr * 100}%`;
+        $('nutrVal').textContent = `${Math.round(S.nutr * 100)}%`;
+        $('tempVal').textContent = `${S.temp.toFixed(1)}°C`;
+        $('mouldVal').textContent = S.mould > 0.5 ? '⚠️ Yes! Open the lid' : S.mould > 0.1 ? 'A little…' : 'None';
+
+        const p = selected;
+        if (!p) {
+            $('plantTitle').textContent = '🔍 Plant check-up';
+            $('plantInfo').innerHTML = 'Tap a plant to see how it\'s feeling.';
+            return;
+        }
+        $('plantTitle').textContent = `🔍 ${p.g.name} (gen ${p.gen})`;
+        if (p.dead) {
+            $('plantInfo').innerHTML = '🥀 This plant has died. It\'s turning into compost that feeds the soil.';
+            return;
+        }
+        const ideal = idealsOf(p);
+        const lightWord = ideal.l < 0.3 ? 'shade' : ideal.l < 0.6 ? 'some light' : 'bright light';
+        const moistWord = ideal.m < 0.35 ? 'dry soil' : ideal.m < 0.6 ? 'damp soil' : 'wet soil';
+        const m = p.m || { mL: 1, mM: 1, mT: 1 };
+        const stage = p.growth < 0.25 ? 'Seedling 🌱' : p.growth < 0.75 ? 'Growing 🌿' : 'Grown-up 🌳';
+        $('plantInfo').innerHTML = `
+            <div class="stat"><span class="lbl">❤️ Health</span><div class="bar"><i style="width:${p.health * 100}%;background:${p.health < 0.35 ? '#C0392B' : '#2E8B57'}"></i></div></div>
+            <div class="stat"><span class="lbl">📏 Size</span><div class="bar"><i style="width:${p.growth * 100}%"></i></div></div>
+            <div class="stat"><span class="muted">${stage} · ${p.age.toFixed(1)} days old (lives about ${Math.round(p.g.lifespan)})</span></div>
+            ${prefRow('☀️', 'Light', lightWord, m.mL, p.lightAvg < ideal.l)}
+            ${prefRow('💧', 'Water', moistWord, m.mM, S.moist < ideal.m)}
+            ${prefRow('🌡️', 'Warmth', `${Math.round(ideal.t)}°C`, m.mT, S.temp < ideal.t)}`;
+    }
+
+    // ---------- Input ----------
+    function toCanvas(e) {
+        const r = canvas.getBoundingClientRect();
+        return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height };
+    }
+    let draggingLamp = false;
+    canvas.addEventListener('pointerdown', e => {
+        const { x, y } = toCanvas(e);
+        if (Math.abs(x - S.lampX) < 50 && y < GLASS.y + 60) {
+            draggingLamp = true;
+            canvas.setPointerCapture(e.pointerId);
+            return;
+        }
+        let best = null, bestDist = Infinity;
+        for (const p of S.plants) {
+            const b = p.bbox;
+            if (!b || x < b.minX - 12 || x > b.maxX + 12 || y < b.top - 12 || y > SOIL_TOP + 15) continue;
+            const d = Math.abs(x - p.x) + (p.dead ? 40 : 0);
+            if (d < bestDist) { best = p; bestDist = d; }
+        }
+        selected = best;
+        updatePanels();
+    });
+    canvas.addEventListener('pointermove', e => {
+        if (draggingLamp) S.lampX = clamp(toCanvas(e).x, GLASS.x + 40, GLASS.x + GLASS.w - 40);
+    });
+    canvas.addEventListener('pointerup', () => { draggingLamp = false; });
+    canvas.addEventListener('pointercancel', () => { draggingLamp = false; });
+
+    $('water').onclick = () => { S.moist = Math.min(1, S.moist + 0.2); spawnParticles('rgba(80, 160, 255, 0.85)', 40); updatePanels(); };
+    $('feed').onclick = () => { S.nutr = Math.min(1, S.nutr + 0.3); spawnParticles('rgba(150, 230, 120, 0.9)', 25); updatePanels(); };
+    $('seed').onclick = () => {
+        if (S.plants.filter(p => !p.dead).length >= MAX_PLANTS) { log('🚫 The terrarium is full!'); return; }
+        for (let tries = 0; tries < 40; tries++) {
+            const x = rand(PX_MIN, PX_MAX);
+            if (freeSpot(x)) {
+                const p = makePlant(randomGenome(), x, 1);
+                S.plants.push(p);
+                selected = p;
+                log(`🌱 You planted a mystery seed: it's ${aOrAn(p.g.name)}!`);
+                return;
+            }
+        }
+        log('🚫 No room for a new seed right now.');
+    };
+    $('lamp').onclick = () => { S.lamp = !S.lamp; syncControls(); };
+    $('lid').onclick = () => { S.lid = !S.lid; syncControls(); };
+    $('heater').oninput = e => { S.heater = Number(e.target.value); syncControls(); };
+    for (const b of $('speed').children) b.onclick = () => { S.speed = Number(b.dataset.speed); syncControls(); };
+    $('reset').onclick = () => { if (confirm('Start a brand new terrarium? Your plants will be gone.')) { newGame(); syncControls(); updatePanels(); save(); } };
+
+    // ---------- Main loop ----------
+    if (!load()) newGame();
+    syncControls();
+    renderLog();
+    updatePanels();
+
+    let last = performance.now(), uiTimer = 0, saveTimer = 0;
+    function frame(now) {
+        const dtReal = Math.min(0.1, (now - last) / 1000);
+        last = now;
+        let dt = dtReal * S.speed / DAY_SECONDS;
+        while (dt > 0) {
+            const step = Math.min(dt, 0.02);
+            simulate(step);
+            dt -= step;
+        }
+        updateParticles(dtReal);
+        render(now / 1000);
+        uiTimer += dtReal;
+        saveTimer += dtReal;
+        if (uiTimer > 0.25) { uiTimer = 0; updatePanels(); }
+        if (saveTimer > 3) { saveTimer = 0; save(); }
+        requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+})();
+</script>
+</body>
+</html>
