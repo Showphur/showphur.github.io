@@ -21,6 +21,7 @@ A collection of simple, kid-friendly learning games, made for my daughter and ho
 | Algebra Game! 🍎 | [`algebra-game/`](algebra-game/) |
 | Darcy's Game (Adventure Island!) | [`darcys-game/`](darcys-game/) |
 | Tiny Terrarium! 🌿 | [`terrarium/`](terrarium/) |
+| Evolution Terrarium! 🧬 | [`evolution-terrarium/`](evolution-terrarium/) |
 
 Shared sound effects live in [`sounds/`](sounds/).
 
