@@ -37,8 +37,10 @@ def test_program_actions_are_logged_as_program(make_world):
     from machineplay.eventlog import EventLog
     w, b = make_world(stage=1)
     w.log = EventLog(keep=True)
-    run_program(w, b, "world.look()", label="s9")
-    assert w.log.events[-1]["via"] == "program:s9"
+    run_program(w, b, "world.look()", label="s9", author_gen=4, kind="engine")
+    act, prog = w.log.events[-2:]
+    assert act["via"] == "program:s9" and act["prog_gen"] == 4
+    assert prog["ev"] == "program" and prog["slate"] == "s9" and prog["prog_gen"] == 4 and prog["calls"] == 1
 
 
 def test_use_resolves_nearest_legible_slate_within_sight(make_world):

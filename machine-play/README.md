@@ -34,10 +34,13 @@ like a goal.
 ```bash
 cd machine-play
 pip install -e '.[claude,dev]'
-pytest -q                                   # about 4 s, no API calls
+pytest -q                                   # about 15 s, no API calls
 
 # Offline smoke run with a scripted agent (no tokens):
 python -m machineplay run --agent scribe --out runs/smoke --lives 6
+# Check that this world can show a ratchet at all (positive vs negative control, a few minutes, no tokens):
+python -m machineplay sweep --agent scribe --seeds 10 --lives 16 --out runs/cal_pos
+python -m machineplay sweep --agent naive-scribe --seeds 10 --lives 16 --out runs/cal_neg
 
 # The real thing: Claude beings, stage 1, with a matching control arm
 python -m machineplay run --out runs/s1_inherit --lives 10 --stage 1 --seed 1
@@ -61,29 +64,65 @@ from there before committing to a long run.
 
 ## Measuring the ratchet
 
-Everything is computed from `runs/<run>/events.jsonl`. No being ever sees it.
+Everything is computed from `runs/<run>/events.jsonl`. No being ever sees it. `metrics <run> --programs` also lists
+every program version (a slate as written in one life) with its runs, success rate and compounds made per run.
 
 | Metric | Meaning | A ratchet looks like |
 |---|---|---|
-| `frontier` | distinct compounds made by any life so far | keeps rising, faster than in the amnesia arm |
-| `new`, `max_tier` | compounds no earlier life made; the deepest compound made in this life | stays above zero; `max_tier` climbs |
-| `parity` | turn by which this life re-made everything the previous life made | falls over lives |
-| `iur` | share of turns that touched writing left by an earlier life | above zero and stable |
-| `code`, `runs`, `program_actions` | code slates written; engine runs (ok/total); moves made by programs | rising `program_actions` = capability carried by code |
-| `derived`, `longest_chain` | writes made right after reading earlier writing; longest such chain | chains that keep lengthening = edits building on edits |
-| `reused_slates` | slates touched by 3 or more distinct later lives | the first real evidence of inherited tools |
-| `improved_derivations` | derived slates, run at least twice, whose runs succeed more often than their parent's | tools getting better, not just copied |
+| `frontier` | distinct compounds made by any life so far (`compounds_possible` is the ceiling) | rises faster than in the amnesia arm |
+| `new`, `max_tier` | compounds no earlier life made; the deepest made in this life | stays above zero; climbs |
+| `remade` | share of the previous life's compounds made again | high **with** `new` > 0. High with `new` = 0 is an exploitation trap |
+| `iur` | share of turns that touched writing or code from an earlier life | above zero |
+| `slates`, `code`, `derived` | slates written, with code, and descending from earlier writing (matched by content) | `derived` > 0 every life |
+| `runs`, `frame_runs`, `uses` | runs a being started (ok/total), runs frames made alone, `use()` of inherited slates | stage 2 and 3 machinery in use |
+| `inh_calls`, `inh_made` | world calls and compounds made by programs **written in earlier lives** | capability carried by code |
+| `longest_chain` | longest chain of writes, each descending from an earlier life's writing | keeps lengthening |
+| `reused_slates` | slates touched by 3 or more later lives | inherited tools |
+| `improved_derivations` | derived programs that make more per run, or fail less, than the version they came from | tools improving, not just copied |
 
-**Two controls make claims credible.**
-- **Amnesia arm** (`--arm amnesia`): the same seed, but the world is rebuilt between lives. A ratchet exists only if the
-  inherit arm beats the amnesia arm **and the gap widens with each life**.
-- **Archaeology** (`eval`): fresh beings in fresh worlds carrying *only the writing* from life *k*'s snapshot. Plot
-  frontier against *k*. A rising curve means the artifacts themselves got better, as opposed to the world simply
-  accumulating cubes.
+**Controls.**
+- **Amnesia arm** (`--arm amnesia`): the same seed, but the world is rebuilt between lives. Its frontier is the union of
+  independent lives, which is a strong baseline: a lineage has to beat parallel independent search.
+- **Several seeds** (`sweep`). One seed per arm is noise: the negative control shows a "ratchet signal" on about
+  40% of single seeds. `sweep` runs both arms over N seeds and calls RATCHET only if the mean gap widens and the
+  final mean gap is more than two standard errors above zero. It reuses finished runs, so it resumes.
+- **Archaeology** (`eval`): fresh beings in fresh worlds carrying only life *k*'s writing. A rising curve over *k*
+  means the artifacts themselves improved.
+- **Ceiling warning.** `compare` and `sweep` warn when both arms are near `compounds_possible`. At that point the
+  control catches up whatever the culture does.
 
-The scripted `scribe` agent shows why the controls matter. It does inherit and reuse its SEEKER program, so `iur`,
-`reused_slates` and `longest_chain` all look healthy. But it skips pairs it knows about instead of building on them,
-and the amnesia arm overtakes it on `frontier`. Inheritance alone is not a ratchet.
+```bash
+python -m machineplay sweep --agent claude --stage 1 --seeds 5 --lives 12 --out runs/sweep_s1
+```
+
+### Scripted controls, and what they showed
+
+The scripted agents navigate by coordinates and do exactly what their code says, so they predict nothing about
+Claude beings. They exist to show that the world and the metrics can tell a ratchet from its absence **before**
+you spend money.
+
+| Agent | Role | Stage 1, default world, 10 seeds × 16 lives |
+|---|---|---|
+| `scribe` | positive control: keeps one compressed RECIPEBOOK up to date in place, upgrades an inherited first-draft CRAFTER, builds on its deepest compounds before re-making anything; uses `use()` and frames at stage 2 and a mantle at stage 3 | final gap **+4.4 ± 1.1**, 8/10 seeds: **RATCHET** |
+| `naive-scribe` | negative control: reuses inherited code but treats inherited recipes only as pairs to skip | **+0.6 ± 0.6**, 4/10 seeds: **NO RATCHET** |
+| `wanderer` | floor: never writes | — |
+
+Stage 3 (6 seeds): +4.3 ± 1.6, RATCHET, but near the ceiling of the default world. With `--set n_elements=16
+--set max_tier=8`: +4.3 ± 1.4, RATCHET. Stage 2: +1.8 ± 1.0, positive but not significant; frames contribute almost
+nothing (about 0.02 compounds per run), because their 4 m arm rarely reaches enough cubes.
+
+What it took to get a positive control. Each item is a pressure real beings will face too:
+1. **Exploitation trap.** A first version rebuilt the deepest known compound before anything else. Its inherited
+   code tripled output per run, yet it lost to the amnesia arm on every seed in bigger worlds: it re-made the past
+   (`remade` near 1) and stopped discovering (`new` near 0). Building on the frontier first fixed it.
+2. **Slate overflow.** A plain recipe list fills a 4,000-character slate after about 80 entries. Kept successes-first,
+   it silently dropped the tried-and-failed pairs, so later lives re-tried known failures as if they were new (only
+   4–8 of about 97 attempts per life were genuinely new). An indexed, compressed book (about 650 tried pairs per
+   slate, still valid Python for `use()`) made inheritance pay. How Claude beings compress, split across slates,
+   and choose what to forget is one of the most interesting things to watch.
+3. **Lineage detection.** Links between writing were first inferred from a 15-turn window and missed real
+   derivations (read at turn 8, written at turn 25). They are now matched by content: the writing read earlier in
+   the life whose words survive best in the new text, including rewrites in place.
 
 ## Safety and containment
 
@@ -111,10 +150,10 @@ machineplay/
   world.py         objects, bodies, space, all actions via World.dispatch, erosion, frames, mantles, snapshots
   sandbox/         engine host (limits, JSON-lines protocol, use() resolution) and the child process
   agents/claude.py Claude mind: one call per deliberation, one action per call, append-only history
-  agents/scripted.py  wanderer and scribe: offline baselines that exercise every channel
+  agents/scripted.py  wanderer, naive-scribe (negative control), scribe (positive control, every stage)
   lineage.py       birth, life, death, erosion; amnesia and archaeology worlds; resume
   metrics.py       per-life and per-run ratchet metrics, arm comparison
-  cli.py           run / eval / metrics / compare / show
+  cli.py           run / sweep / eval / metrics / compare / show
 tests/             world rules, sandbox limits, stages 2 and 3, lineage and controls, the Claude harness (fake client)
 ```
 
@@ -124,10 +163,13 @@ tests/             world rules, sandbox limits, stages 2 and 3, lineage and cont
    set `MACHINEPLAY_NO_UNSHARE=1` to skip it).
 2. Run **one Claude life at stage 1** with `--lives 1` and read `transcripts/life_0000.jsonl`. Does the being find the
    engine? Does it read the plate? Calibrate `turns_per_life` so a life can explore *and* make something.
-3. Run 8–10 lives × {inherit, amnesia} × 2–3 seeds. Pre-register success: **at least one code slate run by 3 or more
+3. Whenever you change the world's settings, re-run the scripted calibration (positive control RATCHET, negative
+   control NO RATCHET) first. If the positive control can't ratchet, no being can.
+4. Run `sweep --agent claude` with 3–5 seeds × 8–12 lives. Pre-register success: **at least one code slate run by 3 or more
    distinct lives, and at least one derived slate whose runs succeed more often than its parent's.**
-4. Tune by symptom:
+5. Tune by symptom:
    - Nobody touches the engine within 3 lives: move it closer, or raise `look_radius`.
    - Code gets written but never reused: wear isn't salient, or lives are too short for reading to pay off; raise `turns_per_life`.
    - The inherit and amnesia arms look the same: inspect `iur` before blaming the beings.
-5. Move to stage 2 only once stage 1 shows reuse across lives, and to stage 3 only once libraries appear.
+   - `remade` high with `new` at zero: an exploitation trap; the lineage re-makes its inheritance and stops exploring.
+6. Move to stage 2 only once stage 1 shows reuse across lives, and to stage 3 only once libraries appear.

@@ -43,7 +43,24 @@ def _isolation_prefix() -> list[str]:
 
 
 def run_program(world: "World", body: "Body", code: str, args: str = "", entry: str | None = None,
-                label: str = "slate", max_calls: int | None = None) -> ProgramResult:
+                label: str = "slate", max_calls: int | None = None, author_gen: int = -1,
+                kind: str = "engine") -> ProgramResult:
+    """Run `code` as `body`. Every run is logged as one `program` event crediting the slate (and the life that
+    wrote it) with its world calls and the reactions it caused."""
+    reactions_before = world.reactions
+    world._programs.append((label, author_gen))
+    try:
+        res = _run(world, body, code, args, entry, label, max_calls)
+    finally:
+        world._programs.pop()
+    world.log.emit(ev="program", gen=world.gen, turn=world.turn, kind=kind, label=label,
+                   slate=label.rsplit(":", 1)[-1], prog_gen=author_gen, actor=body.id, ok=res.ok, calls=res.calls,
+                   reactions=world.reactions - reactions_before, error=res.error)
+    return res
+
+
+def _run(world: "World", body: "Body", code: str, args: str, entry: str | None, label: str,
+         max_calls: int | None) -> ProgramResult:
     cfg = world.cfg
     max_calls = max_calls or cfg.run_max_calls
     mem = cfg.run_memory_mb * 1024 * 1024

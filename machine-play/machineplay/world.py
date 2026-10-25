@@ -9,6 +9,7 @@ import ast
 import inspect
 import math
 import random
+import re
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable
 
@@ -59,8 +60,12 @@ class Body:
     holding: str | None = None
     anchor: list[float] | None = None
     tether: float | None = None
-    recent_reads: list[tuple[int, str]] = field(default_factory=list)
+    recent_reads: list[list] = field(default_factory=list)  # [turn, obj id, written_gen, text as read]
     mantle: dict | None = None
+
+
+def _words(text: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9_]+", text.lower()))
 
 
 def title_key(title: str) -> str:
@@ -125,6 +130,8 @@ class World:
         self.think_tokens_left = cfg.think_tokens_per_life
         self.think_fn: Callable[[str, int], tuple[str, int]] | None = None
         self._extra: dict = {}
+        self._programs: list[tuple[str, int]] = []  # (label, author life) of the program(s) currently running
+        self.reactions = 0  # successful combines ever, used to credit programs with what they made
         self.rng = random.Random(f"world:{cfg.seed}:0")
         if build:
             self._build()
@@ -237,6 +244,8 @@ class World:
             except ActionError as e:
                 result = {"ok": False, "error": str(e)}
         short = {k: (v[:80] if isinstance(v, str) else v) for k, v in kwargs.items()}
+        if self._programs and via != "agent":
+            self._extra["prog_gen"] = self._programs[-1][1]
         self.log.emit(ev="act", gen=self.gen, turn=self.turn, actor=body.id, via=via, fn=fn,
                       args=[a[:80] if isinstance(a, str) else a for a in args], kwargs=short,
                       ok=result["ok"], error=result.get("error"), **self._extra)
@@ -276,7 +285,7 @@ class World:
                     e["held"] = True
                 seen.append(e)
         seen.sort(key=lambda e: e["dist"])
-        return seen[:30]
+        return seen[: self.cfg.look_max]
 
     def a_inspect(self, body: Body, target: str) -> dict:
         o = self._obj(target)
@@ -429,6 +438,7 @@ class World:
         if held_a:
             new.held_by, new.pos, body.holding = body.id, list(body.pos), new.id
         tier = self.chem.substances[product].tier
+        self.reactions += 1
         self._note(reacted=True, pair=sorted([oa.substance, ob.substance]), product=product, tier=tier)
         return {"reacted": True, "result": {"id": new.id, "desc": self.desc(new)}}
 
@@ -448,8 +458,25 @@ class World:
         self._within(body, o)
         if o.text:
             self._touch(body, o, "read")
-            body.recent_reads.append((self.turn, o.id))
+            body.recent_reads = body.recent_reads[-39:] + [[self.turn, o.id, o.written_gen, o.text]]
         return o.text
+
+    def _lineage(self, body: Body, text: str) -> tuple[str | None, int | None]:
+        """Which writing read earlier in this life does the new text descend from? The one whose words survive
+        best in it (at least half of them), preferring writing from earlier lives. Rewriting in place counts."""
+        new = _words(text)
+        best, best_key = (None, None), None
+        for i, (_turn, oid, gen, old_text) in enumerate(body.recent_reads):
+            old = _words(old_text)
+            if len(old) < 3:
+                continue
+            survival = len(old & new) / len(old)
+            if survival < 0.5:
+                continue
+            key = (gen != NEVER_WRITTEN and gen < self.gen, survival, i)  # inherited, then most similar, then latest
+            if best_key is None or key > best_key:
+                best, best_key = (oid, gen), key
+        return best
 
     def a_write(self, body: Body, target: str, text: str) -> dict:
         o = self._obj(target)
@@ -460,13 +487,10 @@ class World:
         text = str(text)
         truncated = len(text) > limit
         o.text = text[:limit]
-        src = next((oid for t, oid in reversed(body.recent_reads)
-                    if oid != o.id and self.turn - t <= 15 and oid in self.objects), None)
-        o.derived_from = src
-        o.derived_from_gen = self.objects[src].written_gen if src else None
+        o.derived_from, o.derived_from_gen = self._lineage(body, o.text)
         o.written_gen, o.last_used_gen, o.uses, o.integrity = self.gen, self.gen, 0, 100
         self._note(obj=o.id, kind=o.kind, length=len(o.text), is_code="world." in o.text,
-                   derived_from=src, derived_from_gen=o.derived_from_gen, title=o.title)
+                   derived_from=o.derived_from, derived_from_gen=o.derived_from_gen, title=o.title)
         return {"written": len(o.text), "truncated": truncated}
 
     def a_run(self, body: Body, args: str = "") -> str:
@@ -480,7 +504,8 @@ class World:
             raise ActionError("the slate in the engine is blank; the engine stays silent")
         self._touch(body, slate, "run")
         extra = dict(self._extra)
-        res = run_program(self, body, slate.text, str(args), label=slate.id)
+        res = run_program(self, body, slate.text, str(args), label=slate.id, author_gen=slate.written_gen,
+                          kind="engine")
         self._extra = {**extra, "program_ok": res.ok, "program_calls": res.calls, "program_error": res.error}
         return res.output
 
@@ -493,7 +518,7 @@ class World:
         self._within(body, o)
         m = parse_mantle(o.text, self.cfg.mantle_mind_chars)
         self._touch(body, o, "attune")
-        body.mantle = {"slate": o.id, "title": o.title, **m}
+        body.mantle = {"slate": o.id, "title": o.title, "written_gen": o.written_gen, **m}
         return {"mind": m["mind"], "techniques": m["tools"]}
 
     def a_invoke(self, body: Body, technique: str, args: str = "") -> str:
@@ -503,7 +528,8 @@ class World:
         if technique not in {t["name"] for t in body.mantle["tools"]}:
             raise ActionError(f"you know no technique called {technique!r}")
         res = run_program(self, body, body.mantle["code"], str(args), entry=technique,
-                          label=f"mantle:{body.mantle['slate']}")
+                          label=f"mantle:{body.mantle['slate']}", author_gen=body.mantle["written_gen"],
+                          kind="mantle")
         self._note(program_ok=res.ok, program_calls=res.calls, program_error=res.error,
                    mantle=body.mantle["slate"])
         return res.output
@@ -565,10 +591,9 @@ class World:
                 self.bodies[bid] = body
             self._extra = {}
             self._touch(body, slate, "run")
-            res = run_program(self, body, slate.text, "", label=f"{f.id}:{slate.id}", max_calls=self.cfg.frame_max_calls)
+            res = run_program(self, body, slate.text, "", label=f"{f.id}:{slate.id}", max_calls=self.cfg.frame_max_calls,
+                              author_gen=slate.written_gen, kind="frame")
             f.last_output = res.output[-300:]
-            self.log.emit(ev="frame_run", gen=self.gen, turn=self.turn, frame=f.id, slate=slate.id,
-                          author_gen=slate.written_gen, ok=res.ok, calls=res.calls, charge=f.charge)
 
     # ------------------------------------------------------------------ life cycle
     def spawn_being(self) -> Body:
@@ -618,7 +643,6 @@ class World:
         w.gen, w.turn, w._n, w.blanks_left = d["gen"], d["turn"], d["n"], d["blanks_left"]
         w.objects = {o["id"]: Obj(**o) for o in d["objects"]}
         for b in d.get("bodies", []):
-            b["recent_reads"] = [tuple(r) for r in b.get("recent_reads", [])]
             w.bodies[b["id"]] = Body(**b)
         return w
 

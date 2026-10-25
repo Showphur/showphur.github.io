@@ -16,6 +16,7 @@ class Config:
     # --- space ---
     world_size: float = 30.0
     look_radius: float = 10.0
+    look_max: int = 30  # look() lists only the nearest this-many things
     reach: float = 1.6
     move_step: float = 6.0
 

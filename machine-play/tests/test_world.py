@@ -128,3 +128,25 @@ def test_transplant_marks_writing_as_inherited(make_world):
     place(fresh, nb, "stone1")
     assert ok(fresh.dispatch(nb, "read", ["stone1"])) == "an old note"
     assert fresh.objects["stone1"].uses == 1
+
+
+def _slate(w, b, text):
+    place(w, b, "quarry")
+    sid = ok(w.dispatch(b, "pick", ["quarry"]))["holding"]["id"]
+    ok(w.dispatch(b, "write", [sid, text]))
+    return sid
+
+
+def test_lineage_follows_content_across_long_gaps_and_in_place_rewrites(make_world):
+    w, b = make_world(stage=1)
+    book = _slate(w, b, "BOOK\nred + blue = violet\ngreen + grey = teal\nwhite + black = grey")
+    w.kill(b)
+    w.end_life()
+    b = w.spawn_being()
+    place(w, b, book)
+    ok(w.dispatch(b, "read", [book]))
+    w.turn = 90  # long after the read
+    ok(w.dispatch(b, "write", [book, "BOOK v2\nred + blue = violet\ngreen + grey = teal\nwhite + black = grey\nnew"]))
+    assert (w.objects[book].derived_from, w.objects[book].derived_from_gen) == (book, 0)
+    other = _slate(w, b, "a poem about clouds and rain falling softly")
+    assert w.objects[other].derived_from is None  # nothing it read survives in it
