@@ -113,7 +113,7 @@ def cmd_sweep(args) -> None:
     pairs = []
     for seed in range(args.seed, args.seed + args.seeds):
         rows = []
-        for arm in ("inherit", "amnesia"):
+        for arm in ("inherit", args.control):
             run = out / f"seed{seed}_{arm}"
             done = len(list((run / "snapshots").glob("*.json"))) if run.exists() else 0
             if done < args.lives:
@@ -160,7 +160,7 @@ def main(argv: list[str] | None = None) -> None:
     r.add_argument("--out", required=True)
     r.add_argument("--lives", type=int, default=10)
     r.add_argument("--stage", type=int, default=1, choices=[0, 1, 2, 3])
-    r.add_argument("--arm", default="inherit", choices=["inherit", "amnesia"])
+    r.add_argument("--arm", default="inherit", choices=["inherit", "amnesia", "mute"])
     r.add_argument("--seed", type=int, default=0)
     r.add_argument("--turns", type=int, default=150)
     r.add_argument("--set", action="append", metavar="KEY=VALUE", help="override any Config field")
@@ -191,6 +191,8 @@ def main(argv: list[str] | None = None) -> None:
     w.add_argument("--seeds", type=int, default=5)
     w.add_argument("--seed", type=int, default=1, help="first seed")
     w.add_argument("--lives", type=int, default=12)
+    w.add_argument("--control", default="amnesia", choices=["amnesia", "mute"],
+                   help="amnesia wipes everything between lives; mute keeps objects and wipes only writing")
     w.add_argument("--stage", type=int, default=1, choices=[0, 1, 2, 3])
     w.add_argument("--turns", type=int, default=150)
     w.add_argument("--set", action="append", metavar="KEY=VALUE", help="override any Config field")

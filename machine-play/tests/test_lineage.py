@@ -94,3 +94,13 @@ def test_sweep_command_runs_and_resumes(tmp_path, capsys):
     assert first.count("seed ") >= 2 and "verdict:" in first
     main(argv)  # finished runs are reused, not rerun
     assert capsys.readouterr().out.splitlines()[-1] == first.splitlines()[-1]
+
+
+def test_mute_arm_keeps_objects_and_erases_writing(tmp_path):
+    cfg = Config(seed=5, stage=1, turns_per_life=120, arm="mute")
+    world = run_lineage(cfg, tmp_path, lambda g: ScribeAgent(), lives=2)
+    assert all(not o.text for o in world.objects.values() if o.kind in ("stone", "slate"))
+    assert any(o.kind == "slate" for o in world.objects.values())  # the slates themselves remain
+    assert any(o.kind == "cube" and o.substance.startswith("p") for o in world.objects.values())
+    rows, _ = metrics(tmp_path, cfg)
+    assert rows[1]["iur"] == 0

@@ -83,11 +83,17 @@ every program version (a slate as written in one life) with its runs, success ra
 **Controls.**
 - **Amnesia arm** (`--arm amnesia`): the same seed, but the world is rebuilt between lives. Its frontier is the union of
   independent lives, which is a strong baseline: a lineage has to beat parallel independent search.
+- **Mute arm** (`--arm mute`, or `sweep --control mute`): every object persists, but all writing is erased between
+  lives. Inherit vs amnesia mixes two inheritances, things and words; inherit vs mute isolates what the words add.
+  In the scripted runs this mattered: at stage 0 the whole inherit-vs-amnesia "ratchet" (+1.8) came from leftover
+  compounds, not writing. And at stage 1 objects *without* records were worse than a fresh world (inherit vs mute
+  +7.6 ± 1.9 against +4.4 ± 1.5 vs amnesia, 10 seeds), because newcomers waste tries on unexplained compounds.
 - **Several seeds** (`sweep`). One seed per arm is noise: the negative control shows a "ratchet signal" on about
   40% of single seeds. `sweep` runs both arms over N seeds and calls RATCHET only if the mean gap widens and the
   final mean gap is more than two standard errors above zero. It reuses finished runs, so it resumes.
 - **Archaeology** (`eval`): fresh beings in fresh worlds carrying only life *k*'s writing. A rising curve over *k*
-  means the artifacts themselves improved.
+  means the artifacts themselves improved. For the scripted scribe it is flat (about 6 compounds per life from
+  life 0's writing or life 15's): its culture works, but its writing stops improving early.
 - **Ceiling warning.** `compare` and `sweep` warn when both arms are near `compounds_possible`. At that point the
   control catches up whatever the culture does.
 

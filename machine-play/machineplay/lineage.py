@@ -79,11 +79,21 @@ def run_lineage(cfg: Config, out_dir: str | Path, make_agent: AgentFactory, live
             world.end_life()
             if transplant is not None or cfg.arm == "amnesia":
                 world = fresh_world(cfg, log, world.gen, transplant)
+            elif cfg.arm == "mute":
+                silence(world)
             path = out / "snapshots" / f"after_life_{world.gen - 1:04d}.json"
             path.write_text(json.dumps(world.to_dict()))
     finally:
         log.close()
     return world
+
+
+def silence(world: World) -> None:
+    """Mute arm: every object stays where it is, but all writing is wiped, so only things are inherited."""
+    for o in world.objects.values():
+        if o.kind in ("stone", "slate"):
+            o.text, o.uses, o.integrity, o.derived_from, o.derived_from_gen = "", 0, 100, None, None
+            o.written_gen = -1
 
 
 def _truncate_events(path: Path, gen: int) -> None:

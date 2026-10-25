@@ -10,7 +10,7 @@ class Config:
     # --- experiment ---
     seed: int = 0
     stage: int = 1  # 0: chemistry+stones  1: +slates/engine  2: +use()/frames  3: +mantles/think()
-    arm: str = "inherit"  # "inherit" keeps the world between lives; "amnesia" rebuilds it (control arm)
+    arm: str = "inherit"  # inherit: the world persists | amnesia: rebuilt each life | mute: objects persist, writing erased
     turns_per_life: int = 150  # lifespan is measured in deliberations, not in physical actions
 
     # --- space ---
